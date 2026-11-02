@@ -1,3 +1,4 @@
-// Supabase → Project Settings → API. Usa Project URL y Publishable key.
-// NUNCA pegues aquí la service_role key.
-window.FAMILYCHAT_CONFIG={SUPABASE_URL:"PEGA_AQUI_TU_PROJECT_URL",SUPABASE_PUBLISHABLE_KEY:"PEGA_AQUI_TU_PUBLISHABLE_KEY"};
+window.FAMILYCHAT_CONFIG = {
+  SUPABASE_URL: "https://kwxasvrgoaseyvnztghg.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_HbGYCVGArzfOKv1ViEewCw_REAZi4mF"
+};
