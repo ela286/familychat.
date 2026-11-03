@@ -1,4 +1,3 @@
-
 (() => {
   "use strict";
 
@@ -91,16 +90,17 @@
     const item = document.createElement("div");
     item.className = "contact-item";
 
-    const avatar = document.createElement("div");
-    avatar.className = "contact-avatar";
-    avatar.textContent = "👤";
+    let avatar;
 
     if (person.avatar_url) {
-      const image = document.createElement("img");
-      image.src = person.avatar_url;
-      image.alt = "";
-      image.className = "contact-avatar";
-      avatar.replaceWith(image);
+      avatar = document.createElement("img");
+      avatar.src = person.avatar_url;
+      avatar.alt = "";
+      avatar.className = "contact-avatar";
+    } else {
+      avatar = document.createElement("div");
+      avatar.className = "contact-avatar";
+      avatar.textContent = "👤";
     }
 
     const info = document.createElement("div");
@@ -109,13 +109,15 @@
 
     const name = document.createElement("strong");
     name.textContent =
-      person.display_name || person.username || person.name || "Usuario";
+      person.display_name ||
+      person.username ||
+      person.name ||
+      "Usuario";
 
     const detail = document.createElement("small");
     detail.textContent = person.email || "";
 
     info.append(name, detail);
-
     item.append(avatar, info);
 
     if (actionText && action) {
@@ -130,54 +132,68 @@
   }
 
   // BUSCAR USUARIOS
+  // Al pulsar la lupa sin escribir, muestra todos los usuarios.
   async function searchUsers() {
     const term = $("userSearchInput").value.trim();
     const results = $("userSearchResults");
 
-    results.innerHTML = "";
+    if (!results) return;
 
-    if (term.length < 2) {
-      results.textContent = "Escribe al menos 2 caracteres.";
-      return;
-    }
+    results.innerHTML = "";
+    results.textContent = "Buscando usuarios...";
 
     msg("Buscando personas...", "appStatus");
 
-    const { data, error } = await sb.rpc(
-      "search_familychat_users",
-      { p_search: term }
-    );
-
-    if (error) {
-      msg("Error buscando usuarios: " + error.message, "appStatus", true);
-      return;
-    }
-
-    if (!data?.length) {
-      results.textContent = "No encontramos usuarios.";
-      msg("", "appStatus");
-      return;
-    }
-
-    data.forEach(person => {
-      const id = person.id || person.user_id;
-
-      const alreadyContact = contacts.some(
-        contact => (contact.id || contact.user_id) === id
+    try {
+      const { data, error } = await sb.rpc(
+        "search_familychat_users",
+        { p_search: term }
       );
 
-      const item = createContactItem(
-        person,
-        alreadyContact ? "Agregado" : "Agregar",
-        alreadyContact ? null : () => sendRequest(id)
+      if (error) throw error;
+
+      results.innerHTML = "";
+
+      if (!data || data.length === 0) {
+        results.textContent =
+          "No encontramos otros usuarios registrados.";
+        msg("", "appStatus");
+        return;
+      }
+
+      data.forEach(person => {
+        const id = person.user_id || person.id;
+
+        const alreadyContact = contacts.some(
+          contact => (contact.id || contact.user_id) === id
+        );
+
+        const item = createContactItem(
+          person,
+          alreadyContact ? "Agregado" : "Agregar",
+          alreadyContact ? null : () => sendRequest(id)
+        );
+
+        results.append(item);
+      });
+
+      msg(`Encontramos ${data.length} usuarios.`, "appStatus");
+
+    } catch (error) {
+      results.innerHTML = "";
+      results.textContent = "No se pudieron cargar los usuarios.";
+
+      msg(
+        "Error buscando usuarios: " + error.message,
+        "appStatus",
+        true
       );
 
-      results.append(item);
-    });
-
-    msg("Búsqueda terminada.", "appStatus");
+      console.error("Error de búsqueda:", error);
+    }
   }
 
+  // ENVIAR SOLICITUD DE AMISTAD
   async function sendRequest(recipientId) {
     const { error } = await sb.rpc("send_friend_request", {
       p_recipient_id: recipientId
@@ -189,6 +205,7 @@
     }
 
     msg("¡Solicitud enviada!", "appStatus");
+
     await loadContacts();
     await loadRequests();
     await searchUsers();
@@ -235,9 +252,13 @@
         avatar_url: request.avatar_url
       };
 
-      const item = createContactItem(person, "Aceptar", async () => {
-        await respondRequest(requestId, true);
-      });
+      const item = createContactItem(
+        person,
+        "Aceptar",
+        async () => {
+          await respondRequest(requestId, true);
+        }
+      );
 
       const reject = document.createElement("button");
       reject.type = "button";
@@ -249,6 +270,7 @@
     });
   }
 
+  // ACEPTAR O RECHAZAR SOLICITUD
   async function respondRequest(requestId, accept) {
     const { error } = await sb.rpc("respond_friend_request", {
       p_request_id: requestId,
@@ -306,7 +328,11 @@
     const personId = person.id || person.user_id;
 
     if (!personId) {
-      msg("No se encontró el identificador del contacto.", "appStatus", true);
+      msg(
+        "No se encontró el identificador del contacto.",
+        "appStatus",
+        true
+      );
       return;
     }
 
@@ -545,7 +571,11 @@
 
     const index = Number(answer) - 1;
 
-    if (!Number.isInteger(index) || index < 0 || index >= contacts.length) {
+    if (
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index >= contacts.length
+    ) {
       msg("Número de contacto no válido.", "appStatus", true);
       return;
     }
@@ -602,7 +632,7 @@
     }
   }
 
-  // BOTONES
+  // BOTÓN GOOGLE
   $("googleBtn").onclick = async () => {
     try {
       const { error } = await sb.auth.signInWithOAuth({
@@ -613,13 +643,16 @@
         }
       });
 
-      if (error) msg(error.message, "loginStatus", true);
+      if (error) {
+        msg(error.message, "loginStatus", true);
+      }
 
     } catch (error) {
       msg(error.message, "loginStatus", true);
     }
   };
 
+  // VALIDAR INVITACIÓN
   $("inviteBtn").onclick = async () => {
     if (!user) {
       msg("Primero inicia sesión con Google.");
@@ -655,6 +688,7 @@
     }
   };
 
+  // BUSCADOR
   $("searchUsersBtn").onclick = searchUsers;
 
   $("userSearchInput").addEventListener("keydown", event => {
@@ -664,16 +698,22 @@
     }
   });
 
+  // GRUPOS Y MENSAJES
   $("newGroupBtn").onclick = createGroup;
   $("addGroupMemberBtn").onclick = addGroupMember;
   $("messageForm").onsubmit = sendMessage;
 
+  // CERRAR SESIÓN
   $("logoutBtn").onclick = async () => {
-    if (channel) await sb.removeChannel(channel);
+    if (channel) {
+      await sb.removeChannel(channel);
+    }
 
     await sb.auth.signOut();
+
     user = null;
     active = null;
+
     login();
   };
 
