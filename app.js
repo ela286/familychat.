@@ -502,162 +502,78 @@
 
   async function createGroup() {
     try {
-      // Obtener el usuario real de Supabase.
       const currentUser = await getAuthenticatedUser();
 
-      console.log("USUARIO AUTENTICADO:", currentUser.id);
-      console.log("USUARIO DE LA APP:", user?.id);
-
       if (user && user.id !== currentUser.id) {
-        throw new Error(
-          "La sesión de FamilyChat no coincide con la sesión de Supabase. Recarga la página."
-        );
-      }
-
-      const { data: profile, error: profileError } = await sb
-        .from("profiles")
-        .select("invite_accepted")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-
-      if (!profile || profile.invite_accepted !== true) {
-        throw new Error(
-          "Tu cuenta no tiene una invitación aceptada."
-        );
+        throw new Error("La sesión cambió. Recarga la página.");
       }
 
       const title = prompt("¿Cómo se llamará el grupo?");
-
       if (!title || !title.trim()) return;
 
       const available = contacts.filter(
-        person => getPersonId(person) &&
-          getPersonId(person) !== currentUser.id
+        person => getPersonId(person) && getPersonId(person) !== currentUser.id
       );
 
       let selected = [];
 
       if (available.length) {
         const options = available
-          .map(
-            (person, index) =>
-              `${index + 1}. ${getPersonName(person)}`
-          )
+          .map((person, index) => `${index + 1}. ${getPersonName(person)}`)
           .join("\n");
 
         const answer = prompt(
-          "Escribe los números de las personas que quieres incluir, separados por comas.\n" +
-          "Déjalo vacío para crear el grupo solo contigo.\n\n" +
-          options
+          "Escribe los números de los contactos que quieres incluir, separados por comas.\n" +
+          "Déjalo vacío para crear el grupo solo contigo.\n\n" + options
         );
 
         if (answer === null) return;
 
         if (answer.trim()) {
-          const indexes = [
-            ...new Set(
-              answer.split(",").map(value => Number(value.trim()) - 1)
-            )
-          ];
+          const indexes = [...new Set(
+            answer.split(",").map(value => Number(value.trim()) - 1)
+          )];
 
-          if (indexes.some(
-            index =>
-              !Number.isInteger(index) ||
-              index < 0 ||
-              index >= available.length
+          if (indexes.some(index =>
+            !Number.isInteger(index) || index < 0 || index >= available.length
           )) {
             throw new Error("Uno de los números de contacto no es válido.");
           }
 
-          selected = indexes.map(
-            index => getPersonId(available[index])
-          );
+          selected = indexes.map(index => getPersonId(available[index]));
         }
       }
 
-      // Crear la conversación usando el ID autenticado real.
-      const { data: conversation, error: conversationError } = await sb
-        .from("conversations")
-        .insert({
-          title: title.trim(),
-          is_group: true,
-          created_by: currentUser.id
-        })
-        .select()
-        .single();
+      status("Creando grupo...");
 
-      if (conversationError) {
-        console.error("ERROR CREANDO CONVERSACIÓN:", conversationError);
-        throw conversationError;
-      }
-
-      // Agregar primero al creador.
-      const { error: ownerError } = await sb
-        .from("conversation_members")
-        .insert({
-          conversation_id: conversation.id,
-          user_id: currentUser.id
-        });
-
-      if (ownerError) {
-        console.error("ERROR AGREGANDO CREADOR:", ownerError);
-
-        status(
-          "El grupo se creó, pero no se pudo agregarte como miembro: " +
-          ownerError.message,
-          "appStatus",
-          true
-        );
-
-        await loadConversations();
-        return;
-      }
-
-      // Intentar agregar a los demás participantes.
-      if (selected.length) {
-        const memberRows = selected.map(id => ({
-          conversation_id: conversation.id,
-          user_id: id
-        }));
-
-        const { error: participantsError } = await sb
-          .from("conversation_members")
-          .insert(memberRows);
-
-        if (participantsError) {
-          console.error(
-            "ERROR AGREGANDO PARTICIPANTES:",
-            participantsError
-          );
-
-          await loadConversations();
-          await openChat(conversation);
-
-          status(
-            "El grupo se creó, pero Supabase bloqueó la incorporación de los demás miembros. Hay que corregir la política RLS de conversation_members.",
-            "appStatus",
-            true
-          );
-
-          return;
+      const { data: conversationId, error } = await sb.rpc(
+        "create_familychat_group",
+        {
+          p_title: title.trim(),
+          p_member_ids: selected
         }
-      }
+      );
+
+      if (error) throw error;
+      if (!conversationId) throw new Error("Supabase no devolvió el ID del grupo.");
 
       await loadConversations();
-      await openChat(conversation);
+
+      const conversation = conversations.find(item => item.id === conversationId);
+
+      if (conversation) {
+        await openChat(conversation);
+      } else {
+        throw new Error(
+          "El grupo se creó, pero no apareció en tus conversaciones. Recarga la página."
+        );
+      }
 
       status("¡Grupo creado correctamente!");
 
     } catch (error) {
       console.error("ERROR CREANDO GRUPO:", error);
-
-      status(
-        "No se pudo crear el grupo: " + error.message,
-        "appStatus",
-        true
-      );
+      status("No se pudo crear el grupo: " + error.message, "appStatus", true);
     }
   }
 
@@ -671,6 +587,10 @@
     try {
       const currentUser = await getAuthenticatedUser();
 
+      if (active.created_by !== currentUser.id) {
+        throw new Error("Solo quien creó el grupo puede agregar miembros.");
+      }
+
       const { data: currentMembers, error: membersError } = await sb
         .from("conversation_members")
         .select("user_id")
@@ -682,10 +602,10 @@
         (currentMembers || []).map(row => row.user_id)
       );
 
-      const available = contacts.filter(
-        person =>
-          !memberIds.has(getPersonId(person)) &&
-          getPersonId(person) !== currentUser.id
+      const available = contacts.filter(person =>
+        getPersonId(person) &&
+        !memberIds.has(getPersonId(person)) &&
+        getPersonId(person) !== currentUser.id
       );
 
       if (!available.length) {
@@ -694,52 +614,39 @@
       }
 
       const options = available
-        .map(
-          (person, index) =>
-            `${index + 1}. ${getPersonName(person)}`
-        )
+        .map((person, index) => `${index + 1}. ${getPersonName(person)}`)
         .join("\n");
 
       const answer = prompt(
-        "Escribe el número del contacto que quieres agregar:\n\n" +
-        options
+        "Escribe el número del contacto que quieres agregar:\n\n" + options
       );
 
       if (!answer) return;
 
       const index = Number(answer) - 1;
 
-      if (
-        !Number.isInteger(index) ||
-        index < 0 ||
-        index >= available.length
-      ) {
+      if (!Number.isInteger(index) || index < 0 || index >= available.length) {
         throw new Error("Número de contacto no válido.");
       }
 
       const person = available[index];
+      const memberId = getPersonId(person);
 
-      const { error } = await sb
-        .from("conversation_members")
-        .insert({
-          conversation_id: active.id,
-          user_id: getPersonId(person)
-        });
+      const { error } = await sb.rpc("add_familychat_group_member", {
+        p_conversation_id: active.id,
+        p_member_id: memberId
+      });
 
       if (error) throw error;
 
       await loadConversations();
 
-      status(
-        `¡${getPersonName(person)} fue agregado al grupo!`
-      );
+      status(`¡${getPersonName(person)} fue agregado al grupo!`);
 
     } catch (error) {
       console.error("ERROR AGREGANDO MIEMBRO:", error);
-
       status(
-        "Supabase no permitió agregar a esta persona: " +
-        error.message,
+        "No se pudo agregar a esta persona: " + error.message,
         "appStatus",
         true
       );
