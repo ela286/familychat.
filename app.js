@@ -11,19 +11,19 @@
   let conversations = [];
   let contacts = [];
   let busy = false;
+  let entering = false;
 
-  const msg = (text, id = "loginStatus", bad = false) => {
-    const el = $(id);
-    if (!el) return;
-    el.textContent = text;
-    el.style.color = bad ? "#bd4545" : "var(--purple)";
-  };
+  // =========================================
+  // MENSAJES Y UTILIDADES
+  // =========================================
 
-  const ready = () =>
-    typeof cfg.SUPABASE_URL === "string" &&
-    cfg.SUPABASE_URL.startsWith("https://") &&
-    typeof cfg.SUPABASE_PUBLISHABLE_KEY === "string" &&
-    cfg.SUPABASE_PUBLISHABLE_KEY.length > 10;
+  function status(message, target = "appStatus", bad = false) {
+    const element = $(target);
+    if (!element) return;
+
+    element.textContent = message;
+    element.style.color = bad ? "#e04444" : "var(--purple)";
+  }
 
   function showLogin() {
     $("loginView").classList.remove("hidden");
@@ -35,53 +35,102 @@
     $("appView").classList.remove("hidden");
   }
 
-  async function enter(u) {
-    user = u;
-
-    const { data: profile, error } = await sb
-      .from("profiles")
-      .select("*")
-      .eq("id", u.id)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    if (!profile?.invite_accepted) {
-      showLogin();
-      msg("Introduce la clave de invitación después de iniciar sesión con Google.");
-      return;
-    }
-
-    $("profileName").textContent =
-      profile.display_name || u.user_metadata?.full_name || "Usuario";
-
-    $("profileEmail").textContent = u.email || "";
-
-    $("avatar").src =
-      profile.avatar_url || u.user_metadata?.avatar_url || "icon.svg";
-
-    showApp();
-
-    await Promise.all([
-      loadConversations(),
-      loadContacts(),
-      loadRequests()
-    ]);
-  }
-
-  function personId(person) {
+  function getPersonId(person) {
     return person.id ||
       person.user_id ||
       person.contact_id ||
       person.requester_id;
   }
 
-  function personName(person) {
+  function getPersonName(person) {
     return person.display_name ||
       person.username ||
       person.name ||
       "Usuario";
   }
+
+  async function getAuthenticatedUser() {
+    const { data, error } = await sb.auth.getUser();
+
+    if (error) throw error;
+
+    if (!data.user) {
+      throw new Error("No hay una sesión de usuario activa.");
+    }
+
+    return data.user;
+  }
+
+  // =========================================
+  // PERFIL E INICIO DE SESIÓN
+  // =========================================
+
+  async function enter(authUser) {
+    if (entering) return;
+
+    entering = true;
+
+    try {
+      const authenticatedUser = await getAuthenticatedUser();
+
+      if (authenticatedUser.id !== authUser.id) {
+        throw new Error("La sesión cambió. Vuelve a iniciar sesión.");
+      }
+
+      user = authenticatedUser;
+
+      const { data: profile, error } = await sb
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!profile) {
+        throw new Error("No encontramos tu perfil en FamilyChat.");
+      }
+
+      if (!profile.invite_accepted) {
+        showLogin();
+        status(
+          "Tu cuenta todavía necesita una invitación válida.",
+          "loginStatus",
+          true
+        );
+        return;
+      }
+
+      $("profileName").textContent =
+        profile.display_name ||
+        user.user_metadata?.full_name ||
+        "Usuario";
+
+      $("profileEmail").textContent = user.email || "";
+
+      $("avatar").src =
+        profile.avatar_url ||
+        user.user_metadata?.avatar_url ||
+        "icon.svg";
+
+      showApp();
+
+      await Promise.all([
+        loadConversations(),
+        loadContacts(),
+        loadRequests()
+      ]);
+
+      status("FamilyChat está conectado.");
+
+    } finally {
+      entering = false;
+    }
+  }
+
+  // =========================================
+  // BUSCAR USUARIOS
+  // =========================================
 
   function addPersonCard(
     container,
@@ -111,7 +160,7 @@
     info.style.minWidth = "0";
 
     const name = document.createElement("strong");
-    name.textContent = personName(person);
+    name.textContent = getPersonName(person);
 
     const detail = document.createElement("small");
     detail.textContent = detailText || person.email || "";
@@ -134,19 +183,16 @@
   async function searchUsers() {
     const term = $("userSearchInput").value.trim();
     const results = $("userSearchResults");
-    const button = $("searchUsersBtn");
 
     results.innerHTML = "";
-    button.disabled = true;
+    $("searchUsersBtn").disabled = true;
 
-    msg("Cargando usuarios...", "appStatus");
+    status("Buscando usuarios...");
 
     try {
       const { data, error } = await sb.rpc(
         "search_familychat_users",
-        {
-          p_search: term
-        }
+        { p_search: term }
       );
 
       if (error) throw error;
@@ -154,23 +200,19 @@
       const users = data || [];
 
       if (!users.length) {
-        const empty = document.createElement("p");
-        empty.className = "muted small";
+        results.textContent = term
+          ? "No encontramos usuarios."
+          : "No hay otros usuarios disponibles.";
 
-        empty.textContent = term
-          ? "No encontramos usuarios con ese nombre."
-          : "Todavía no hay otros usuarios que hayan aceptado la invitación.";
-
-        results.append(empty);
-        msg("", "appStatus");
+        status("");
         return;
       }
 
       users.forEach(person => {
-        const id = personId(person);
+        const id = getPersonId(person);
 
         const alreadyAdded = contacts.some(
-          c => personId(c) === id
+          contact => getPersonId(contact) === id
         );
 
         addPersonCard(
@@ -180,43 +222,35 @@
           alreadyAdded || !id
             ? null
             : () => sendFriendRequest(id),
-          person.online === true
-            ? "En línea"
-            : "Usuario de FamilyChat"
+          "Usuario de FamilyChat"
         );
       });
 
-      msg(
-        `Se encontraron ${users.length} usuario(s).`,
-        "appStatus"
-      );
+      status(`Se encontraron ${users.length} usuario(s).`);
 
     } catch (error) {
-      console.error(error);
-
-      msg(
-        "Error al buscar usuarios: " + error.message,
-        "appStatus",
-        true
-      );
+      console.error("Error buscando usuarios:", error);
+      status("Error al buscar: " + error.message, "appStatus", true);
 
     } finally {
-      button.disabled = false;
+      $("searchUsersBtn").disabled = false;
     }
   }
+
+  // =========================================
+  // SOLICITUDES DE CONTACTO
+  // =========================================
 
   async function sendFriendRequest(recipientId) {
     try {
       const { error } = await sb.rpc(
         "send_friend_request",
-        {
-          p_recipient_id: recipientId
-        }
+        { p_recipient_id: recipientId }
       );
 
       if (error) throw error;
 
-      msg("¡Solicitud enviada!", "appStatus");
+      status("¡Solicitud enviada!");
 
       await Promise.all([
         loadContacts(),
@@ -225,18 +259,13 @@
       ]);
 
     } catch (error) {
-      msg(
-        "No se pudo enviar la solicitud: " + error.message,
-        "appStatus",
-        true
-      );
+      console.error(error);
+      status("No se pudo enviar la solicitud: " + error.message, "appStatus", true);
     }
   }
 
   async function loadRequests() {
     const list = $("friendRequestsList");
-    const count = $("requestCount");
-
     list.innerHTML = "";
 
     const { data, error } = await sb.rpc(
@@ -244,23 +273,18 @@
     );
 
     if (error) {
-      list.textContent =
-        "No se pudieron cargar las solicitudes.";
-
-      console.error(error);
+      console.error("Error cargando solicitudes:", error);
+      list.textContent = "No se pudieron cargar las solicitudes.";
       return;
     }
 
     const requests = data || [];
 
-    count.textContent = requests.length
-      ? `(${requests.length})`
-      : "";
+    $("requestCount").textContent =
+      requests.length ? `(${requests.length})` : "";
 
     if (!requests.length) {
-      list.textContent =
-        "No tienes solicitudes pendientes.";
-
+      list.textContent = "No tienes solicitudes pendientes.";
       return;
     }
 
@@ -277,7 +301,6 @@
       const reject = document.createElement("button");
       reject.type = "button";
       reject.textContent = "Rechazar";
-
       reject.addEventListener(
         "click",
         () => respondRequest(id, false)
@@ -299,11 +322,8 @@
 
       if (error) throw error;
 
-      msg(
-        accept
-          ? "¡Contacto agregado!"
-          : "Solicitud rechazada.",
-        "appStatus"
+      status(
+        accept ? "¡Contacto agregado!" : "Solicitud rechazada."
       );
 
       await Promise.all([
@@ -313,13 +333,17 @@
       ]);
 
     } catch (error) {
-      msg(error.message, "appStatus", true);
+      console.error(error);
+      status(error.message, "appStatus", true);
     }
   }
 
+  // =========================================
+  // CONTACTOS
+  // =========================================
+
   async function loadContacts() {
     const list = $("contactsList");
-
     list.innerHTML = "";
 
     const { data, error } = await sb.rpc(
@@ -327,19 +351,15 @@
     );
 
     if (error) {
-      list.textContent =
-        "No se pudieron cargar los contactos.";
-
-      console.error(error);
+      console.error("Error cargando contactos:", error);
+      list.textContent = "No se pudieron cargar los contactos.";
       return;
     }
 
     contacts = data || [];
 
     if (!contacts.length) {
-      list.textContent =
-        "Todavía no tienes contactos.";
-
+      list.textContent = "Todavía no tienes contactos.";
       return;
     }
 
@@ -353,7 +373,13 @@
     });
   }
 
+  // =========================================
+  // CONVERSACIONES
+  // =========================================
+
   async function loadConversations() {
+    if (!user) return;
+
     const { data, error } = await sb
       .from("conversation_members")
       .select(
@@ -362,7 +388,8 @@
       .eq("user_id", user.id);
 
     if (error) {
-      msg(error.message, "appStatus", true);
+      console.error("Error cargando conversaciones:", error);
+      status(error.message, "appStatus", true);
       return;
     }
 
@@ -371,13 +398,10 @@
       .filter(Boolean);
 
     const list = $("conversationList");
-
     list.innerHTML = "";
 
     if (!conversations.length) {
-      list.innerHTML =
-        '<p class="muted small">Todavía no tienes conversaciones.</p>';
-
+      list.textContent = "Todavía no tienes conversaciones.";
       return;
     }
 
@@ -389,19 +413,13 @@
         (active?.id === conversation.id ? " active" : "");
 
       const icon = document.createElement("span");
-
       icon.className = "conversation-avatar";
-
-      icon.textContent = conversation.is_group
-        ? "👥"
-        : "💬";
+      icon.textContent = conversation.is_group ? "👥" : "💬";
 
       const title = document.createElement("strong");
-
-      title.textContent = conversation.title;
+      title.textContent = conversation.title || "Conversación";
 
       button.append(icon, title);
-
       button.addEventListener(
         "click",
         () => openChat(conversation)
@@ -411,26 +429,29 @@
     });
   }
 
+  // =========================================
+  // CREAR CHAT PRIVADO
+  // =========================================
+
   async function createPrivateChat(person) {
-    const otherId = personId(person);
-
-    if (!otherId) {
-      msg(
-        "No se encontró el identificador del contacto.",
-        "appStatus",
-        true
-      );
-
-      return;
-    }
-
     try {
+      const currentUser = await getAuthenticatedUser();
+      const otherId = getPersonId(person);
+
+      if (!otherId) {
+        throw new Error("No se encontró el identificador del contacto.");
+      }
+
+      if (otherId === currentUser.id) {
+        throw new Error("No puedes crear un chat contigo mismo.");
+      }
+
       const { data: conversation, error } = await sb
         .from("conversations")
         .insert({
-          title: personName(person),
+          title: getPersonName(person),
           is_group: false,
-          created_by: user.id
+          created_by: currentUser.id
         })
         .select()
         .single();
@@ -439,122 +460,81 @@
 
       const { error: memberError } = await sb
         .from("conversation_members")
-        .insert([
-          {
-            conversation_id: conversation.id,
-            user_id: user.id
-          },
-          {
-            conversation_id: conversation.id,
-            user_id: otherId
-          }
-        ]);
+        .insert({
+          conversation_id: conversation.id,
+          user_id: currentUser.id
+        });
 
       if (memberError) throw memberError;
+
+      const { error: otherMemberError } = await sb
+        .from("conversation_members")
+        .insert({
+          conversation_id: conversation.id,
+          user_id: otherId
+        });
+
+      if (otherMemberError) {
+        console.error("Error agregando al contacto:", otherMemberError);
+        status(
+          "El chat se creó, pero Supabase no permitió agregar al otro usuario: " +
+          otherMemberError.message,
+          "appStatus",
+          true
+        );
+
+        await loadConversations();
+        return;
+      }
 
       await loadConversations();
       await openChat(conversation);
 
     } catch (error) {
-      msg(
-        "No se pudo crear el chat: " + error.message,
-        "appStatus",
-        true
-      );
+      console.error("Error creando chat:", error);
+      status("No se pudo crear el chat: " + error.message, "appStatus", true);
     }
   }
 
-  async function openChat(conversation) {
-    active = conversation;
-
-    $("chatTitle").textContent = conversation.title;
-
-    $("emptyState").classList.add("hidden");
-    $("messages").classList.remove("hidden");
-    $("messageForm").classList.remove("hidden");
-
-    $("addGroupMemberBtn").classList.toggle(
-      "hidden",
-      !conversation.is_group
-    );
-
-    await loadMessages();
-
-    if (channel) {
-      await sb.removeChannel(channel);
-    }
-
-    channel = sb
-      .channel("chat-" + conversation.id)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: "conversation_id=eq." + conversation.id
-        },
-        loadMessages
-      )
-      .subscribe();
-
-    await loadConversations();
-  }
-
-  async function loadMessages() {
-    if (!active) return;
-
-    const { data, error } = await sb
-      .from("messages")
-      .select("*")
-      .eq("conversation_id", active.id)
-      .order("created_at")
-      .limit(200);
-
-    if (error) {
-      msg(error.message, "appStatus", true);
-      return;
-    }
-
-    const box = $("messages");
-
-    box.innerHTML = "";
-
-    (data || []).forEach(message => {
-      const item = document.createElement("div");
-
-      item.className =
-        "message" +
-        (message.sender_id === user.id ? " mine" : "");
-
-      const body = document.createElement("div");
-
-      body.textContent = message.body;
-
-      const time = document.createElement("small");
-
-      time.textContent = new Date(
-        message.created_at
-      ).toLocaleString();
-
-      item.append(body, time);
-
-      box.append(item);
-    });
-
-    box.scrollTop = box.scrollHeight;
-  }
+  // =========================================
+  // CREAR GRUPO
+  // =========================================
 
   async function createGroup() {
-    const title = prompt(
-      "¿Cómo se llamará el grupo?"
-    );
-
-    if (!title?.trim()) return;
-
     try {
+      // Obtener el usuario real de Supabase.
+      const currentUser = await getAuthenticatedUser();
+
+      console.log("USUARIO AUTENTICADO:", currentUser.id);
+      console.log("USUARIO DE LA APP:", user?.id);
+
+      if (user && user.id !== currentUser.id) {
+        throw new Error(
+          "La sesión de FamilyChat no coincide con la sesión de Supabase. Recarga la página."
+        );
+      }
+
+      const { data: profile, error: profileError } = await sb
+        .from("profiles")
+        .select("invite_accepted")
+        .eq("id", currentUser.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      if (!profile || profile.invite_accepted !== true) {
+        throw new Error(
+          "Tu cuenta no tiene una invitación aceptada."
+        );
+      }
+
+      const title = prompt("¿Cómo se llamará el grupo?");
+
+      if (!title || !title.trim()) return;
+
       const available = contacts.filter(
-        person => personId(person)
+        person => getPersonId(person) &&
+          getPersonId(person) !== currentUser.id
       );
 
       let selected = [];
@@ -562,8 +542,8 @@
       if (available.length) {
         const options = available
           .map(
-            (person, i) =>
-              `${i + 1}. ${personName(person)}`
+            (person, index) =>
+              `${index + 1}. ${getPersonName(person)}`
           )
           .join("\n");
 
@@ -578,74 +558,102 @@
         if (answer.trim()) {
           const indexes = [
             ...new Set(
-              answer
-                .split(",")
-                .map(value => Number(value.trim()) - 1)
+              answer.split(",").map(value => Number(value.trim()) - 1)
             )
           ];
 
-          if (
-            indexes.some(
-              index =>
-                !Number.isInteger(index) ||
-                index < 0 ||
-                index >= available.length
-            )
-          ) {
-            msg(
-              "Hay un número de contacto no válido. No se creó el grupo.",
-              "appStatus",
-              true
-            );
-
-            return;
+          if (indexes.some(
+            index =>
+              !Number.isInteger(index) ||
+              index < 0 ||
+              index >= available.length
+          )) {
+            throw new Error("Uno de los números de contacto no es válido.");
           }
 
           selected = indexes.map(
-            index => personId(available[index])
+            index => getPersonId(available[index])
           );
         }
       }
 
-      const { data: conversation, error } = await sb
+      // Crear la conversación usando el ID autenticado real.
+      const { data: conversation, error: conversationError } = await sb
         .from("conversations")
         .insert({
           title: title.trim(),
           is_group: true,
-          created_by: user.id
+          created_by: currentUser.id
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (conversationError) {
+        console.error("ERROR CREANDO CONVERSACIÓN:", conversationError);
+        throw conversationError;
+      }
 
-      const memberRows = [
-        user.id,
-        ...selected
-      ].map(userId => ({
-        conversation_id: conversation.id,
-        user_id: userId
-      }));
-
-      const { error: memberError } = await sb
+      // Agregar primero al creador.
+      const { error: ownerError } = await sb
         .from("conversation_members")
-        .insert(memberRows);
+        .insert({
+          conversation_id: conversation.id,
+          user_id: currentUser.id
+        });
 
-      if (memberError) throw memberError;
+      if (ownerError) {
+        console.error("ERROR AGREGANDO CREADOR:", ownerError);
+
+        status(
+          "El grupo se creó, pero no se pudo agregarte como miembro: " +
+          ownerError.message,
+          "appStatus",
+          true
+        );
+
+        await loadConversations();
+        return;
+      }
+
+      // Intentar agregar a los demás participantes.
+      if (selected.length) {
+        const memberRows = selected.map(id => ({
+          conversation_id: conversation.id,
+          user_id: id
+        }));
+
+        const { error: participantsError } = await sb
+          .from("conversation_members")
+          .insert(memberRows);
+
+        if (participantsError) {
+          console.error(
+            "ERROR AGREGANDO PARTICIPANTES:",
+            participantsError
+          );
+
+          await loadConversations();
+          await openChat(conversation);
+
+          status(
+            "El grupo se creó, pero Supabase bloqueó la incorporación de los demás miembros. Hay que corregir la política RLS de conversation_members.",
+            "appStatus",
+            true
+          );
+
+          return;
+        }
+      }
 
       await loadConversations();
-
       await openChat(conversation);
 
-      msg(
-        "¡Grupo creado y participantes añadidos!",
-        "appStatus"
-      );
+      status("¡Grupo creado correctamente!");
 
     } catch (error) {
-      console.error("Error creando grupo:", error);
+      console.error("ERROR CREANDO GRUPO:", error);
 
-      msg(
+      status(
         "No se pudo crear el grupo: " + error.message,
         "appStatus",
         true
@@ -653,51 +661,42 @@
     }
   }
 
+  // =========================================
+  // AGREGAR PERSONAS A UN GRUPO
+  // =========================================
+
   async function addGroupMember() {
     if (!active?.is_group) return;
 
-    if (!contacts.length) {
-      msg(
-        "Primero agrega contactos.",
-        "appStatus",
-        true
-      );
-
-      return;
-    }
-
     try {
-      const { data: currentMembers, error: membersError } =
-        await sb
-          .from("conversation_members")
-          .select("user_id")
-          .eq("conversation_id", active.id);
+      const currentUser = await getAuthenticatedUser();
+
+      const { data: currentMembers, error: membersError } = await sb
+        .from("conversation_members")
+        .select("user_id")
+        .eq("conversation_id", active.id);
 
       if (membersError) throw membersError;
 
       const memberIds = new Set(
-        (currentMembers || []).map(
-          row => row.user_id
-        )
+        (currentMembers || []).map(row => row.user_id)
       );
 
       const available = contacts.filter(
-        person => !memberIds.has(personId(person))
+        person =>
+          !memberIds.has(getPersonId(person)) &&
+          getPersonId(person) !== currentUser.id
       );
 
       if (!available.length) {
-        msg(
-          "Todos tus contactos ya están en este grupo.",
-          "appStatus"
-        );
-
+        status("No tienes contactos nuevos para agregar.");
         return;
       }
 
       const options = available
         .map(
-          (person, i) =>
-            `${i + 1}. ${personName(person)}`
+          (person, index) =>
+            `${index + 1}. ${getPersonName(person)}`
         )
         .join("\n");
 
@@ -715,47 +714,121 @@
         index < 0 ||
         index >= available.length
       ) {
-        msg(
-          "Número de contacto no válido.",
-          "appStatus",
-          true
-        );
-
-        return;
+        throw new Error("Número de contacto no válido.");
       }
 
-      const contactId = personId(
-        available[index]
-      );
+      const person = available[index];
 
       const { error } = await sb
         .from("conversation_members")
         .insert({
           conversation_id: active.id,
-          user_id: contactId
+          user_id: getPersonId(person)
         });
 
       if (error) throw error;
 
       await loadConversations();
 
-      msg(
-        `¡${personName(available[index])} fue agregado al grupo!`,
-        "appStatus"
+      status(
+        `¡${getPersonName(person)} fue agregado al grupo!`
       );
 
     } catch (error) {
-      console.error(
-        "Error agregando participante:",
-        error
-      );
+      console.error("ERROR AGREGANDO MIEMBRO:", error);
 
-      msg(
-        "No se pudo agregar: " + error.message,
+      status(
+        "Supabase no permitió agregar a esta persona: " +
+        error.message,
         "appStatus",
         true
       );
     }
+  }
+
+  // =========================================
+  // MENSAJES
+  // =========================================
+
+  async function openChat(conversation) {
+    active = conversation;
+
+    $("chatTitle").textContent =
+      conversation.title || "Conversación";
+
+    $("emptyState").classList.add("hidden");
+    $("messages").classList.remove("hidden");
+    $("messageForm").classList.remove("hidden");
+
+    $("addGroupMemberBtn").classList.toggle(
+      "hidden",
+      !conversation.is_group
+    );
+
+    await loadMessages();
+
+    if (channel) {
+      await sb.removeChannel(channel);
+      channel = null;
+    }
+
+    channel = sb
+      .channel("chat-" + conversation.id)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: "conversation_id=eq." + conversation.id
+        },
+        () => loadMessages()
+      )
+      .subscribe();
+
+    await loadConversations();
+  }
+
+  async function loadMessages() {
+    if (!active) return;
+
+    const { data, error } = await sb
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", active.id)
+      .order("created_at", { ascending: true })
+      .limit(200);
+
+    if (error) {
+      console.error("ERROR CARGANDO MENSAJES:", error);
+      status(error.message, "appStatus", true);
+      return;
+    }
+
+    const box = $("messages");
+    box.innerHTML = "";
+
+    (data || []).forEach(message => {
+      const item = document.createElement("div");
+
+      item.className =
+        "message" +
+        (message.sender_id === user.id ? " mine" : "");
+
+      const body = document.createElement("div");
+      body.textContent = message.body || "";
+
+      const time = document.createElement("small");
+
+      time.textContent = message.created_at
+        ? new Date(message.created_at).toLocaleString()
+        : "";
+
+      item.append(body, time);
+      box.append(item);
+    });
+
+    box.scrollTop = box.scrollHeight;
   }
 
   async function sendMessage(event) {
@@ -763,8 +836,8 @@
 
     if (!active) return;
 
+    const currentUser = await getAuthenticatedUser();
     const input = $("messageInput");
-
     const body = input.value.trim();
 
     if (!body) return;
@@ -775,24 +848,27 @@
       .from("messages")
       .insert({
         conversation_id: active.id,
-        sender_id: user.id,
+        sender_id: currentUser.id,
         body
       });
 
     if (error) {
       input.value = body;
-
-      msg(
-        error.message,
-        "appStatus",
-        true
-      );
+      console.error("ERROR ENVIANDO MENSAJE:", error);
+      status(error.message, "appStatus", true);
+    } else {
+      await loadMessages();
     }
   }
+
+  // =========================================
+  // CERRAR SESIÓN
+  // =========================================
 
   async function logout() {
     if (channel) {
       await sb.removeChannel(channel);
+      channel = null;
     }
 
     await sb.auth.signOut();
@@ -800,26 +876,34 @@
     user = null;
     active = null;
     contacts = [];
+    conversations = [];
 
     showLogin();
   }
 
-  async function init() {
-    if (!ready()) {
-      msg(
-        "Configura config.js con la URL y Publishable key de Supabase."
-      );
+  // =========================================
+  // INICIAR APLICACIÓN
+  // =========================================
 
+  async function init() {
+    if (
+      !cfg.SUPABASE_URL ||
+      !cfg.SUPABASE_PUBLISHABLE_KEY
+    ) {
+      status(
+        "Falta configurar config.js.",
+        "loginStatus",
+        true
+      );
       return;
     }
 
     if (!window.supabase) {
-      msg(
+      status(
         "No se pudo cargar Supabase. Revisa tu conexión.",
         "loginStatus",
         true
       );
-
       return;
     }
 
@@ -828,27 +912,17 @@
       cfg.SUPABASE_PUBLISHABLE_KEY
     );
 
-    const { data, error } =
-      await sb.auth.getSession();
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        user = null;
+        active = null;
+        showLogin();
+      }
+    });
+
+    const { data, error } = await sb.auth.getSession();
 
     if (error) throw error;
-
-    sb.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          enter(session.user).catch(
-            err => msg(
-              err.message,
-              "loginStatus",
-              true
-            )
-          );
-        } else {
-          user = null;
-          showLogin();
-        }
-      }
-    );
 
     if (data.session?.user) {
       await enter(data.session.user);
@@ -856,6 +930,7 @@
       showLogin();
     }
 
+    // Actualizar contactos, solicitudes y conversaciones.
     window.setInterval(async () => {
       if (!user || busy) return;
 
@@ -867,110 +942,91 @@
           loadRequests(),
           loadConversations()
         ]);
-
       } catch (error) {
-        console.warn(
-          "No se pudo actualizar FamilyChat:",
-          error
-        );
-
+        console.warn("Error actualizando FamilyChat:", error);
       } finally {
         busy = false;
       }
-
     }, 10000);
   }
 
-  $("googleBtn").addEventListener(
-    "click",
-    async () => {
-      try {
-        const { error } =
-          await sb.auth.signInWithOAuth({
-            provider: "google",
-            options: {
-              redirectTo:
-                location.origin + location.pathname
-            }
-          });
+  // =========================================
+  // BOTONES
+  // =========================================
 
-        if (error) throw error;
+  $("googleBtn").addEventListener("click", async () => {
+    try {
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: location.origin + location.pathname
+        }
+      });
 
-      } catch (error) {
-        msg(
-          error.message,
+      if (error) throw error;
+
+    } catch (error) {
+      console.error(error);
+      status(error.message, "loginStatus", true);
+    }
+  });
+
+  $("inviteBtn").addEventListener("click", async () => {
+    try {
+      if (!user) {
+        status(
+          "Primero inicia sesión con Google.",
           "loginStatus",
           true
         );
-      }
-    }
-  );
-
-  $("inviteBtn").addEventListener(
-    "click",
-    async () => {
-      if (!user) {
-        msg(
-          "Primero inicia sesión con Google."
-        );
-
         return;
       }
 
       const code = $("inviteInput").value.trim();
 
       if (!code) {
-        msg("Escribe la clave de invitación.");
-        return;
-      }
-
-      const button = $("inviteBtn");
-
-      button.disabled = true;
-
-      try {
-        msg("Validando invitación...");
-
-        const { error } = await sb.rpc(
-          "redeem_invite",
-          {
-            p_code: code
-          }
-        );
-
-        if (error) throw error;
-
-        msg("¡Invitación validada!");
-
-        await enter(user);
-
-      } catch (error) {
-        msg(
-          error.message,
+        status(
+          "Escribe la clave de invitación.",
           "loginStatus",
           true
         );
-
-      } finally {
-        button.disabled = false;
+        return;
       }
+
+      $("inviteBtn").disabled = true;
+      status("Validando invitación...", "loginStatus");
+
+      const { error } = await sb.rpc(
+        "redeem_invite",
+        { p_code: code }
+      );
+
+      if (error) throw error;
+
+      const currentUser = await getAuthenticatedUser();
+
+      await enter(currentUser);
+
+    } catch (error) {
+      console.error(error);
+      status(error.message, "loginStatus", true);
+
+    } finally {
+      $("inviteBtn").disabled = false;
     }
-  );
+  });
 
   $("searchUsersBtn").addEventListener(
     "click",
     searchUsers
   );
 
-  $("userSearchInput").addEventListener(
-    "keydown",
-    event => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        searchUsers();
-      }
+  $("userSearchInput").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchUsers();
     }
-  );
+  });
 
   $("newGroupBtn").addEventListener(
     "click",
@@ -984,26 +1040,29 @@
 
   $("messageForm").addEventListener(
     "submit",
-    sendMessage
-  );
-
-  $("logoutBtn").addEventListener(
-    "click",
-    () => {
-      logout().catch(
-        error => msg(
-          error.message,
-          "appStatus",
-          true
-        )
-      );
+    event => {
+      sendMessage(event).catch(error => {
+        console.error(error);
+        status(error.message, "appStatus", true);
+      });
     }
   );
 
-  init().catch(error => {
-    console.error("FamilyChat:", error);
+  $("logoutBtn").addEventListener("click", () => {
+    logout().catch(error => {
+      console.error(error);
+      status(error.message, "appStatus", true);
+    });
+  });
 
-    msg(
+  // =========================================
+  // EJECUTAR
+  // =========================================
+
+  init().catch(error => {
+    console.error("ERROR INICIANDO FAMILYCHAT:", error);
+
+    status(
       error.message,
       "loginStatus",
       true
