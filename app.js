@@ -14,6 +14,7 @@
   let busy = false;
   let entering = false;
   let refreshTimer = null;
+  let deleteChatBtn = null;
 
   // =========================================
   // UTILIDADES
@@ -56,10 +57,7 @@
     const { data, error } = await sb.auth.getUser();
 
     if (error) throw error;
-
-    if (!data.user) {
-      throw new Error("Debes iniciar sesión.");
-    }
+    if (!data.user) throw new Error("Debes iniciar sesión.");
 
     return data.user;
   }
@@ -96,11 +94,7 @@
 
       if (!profile.invite_accepted) {
         showLogin();
-        status(
-          "Necesitas una invitación válida.",
-          "loginStatus",
-          true
-        );
+        status("Necesitas una invitación válida.", "loginStatus", true);
         return;
       }
 
@@ -194,7 +188,6 @@
     const results = $("userSearchResults");
 
     results.innerHTML = "";
-
     $("searchUsersBtn").disabled = true;
 
     status("Buscando usuarios...");
@@ -202,18 +195,24 @@
     try {
       const { data, error } = await sb.rpc(
         "search_familychat_users",
-        {
-          p_search: term
-        }
+        { p_search: term }
       );
 
       if (error) throw error;
 
-      const users = data || [];
+      // Ocultar contactos que ya fueron agregados
+      const contactIds = new Set(
+        contacts.map(person => getPersonId(person))
+      );
+
+      const users = (data || []).filter(person => {
+        const id = getPersonId(person);
+        return id && !contactIds.has(id);
+      });
 
       if (!users.length) {
         results.textContent = term
-          ? "No encontramos usuarios."
+          ? "No hay usuarios nuevos para mostrar."
           : "No hay otros usuarios disponibles.";
 
         status("");
@@ -223,22 +222,16 @@
       users.forEach(person => {
         const id = getPersonId(person);
 
-        const alreadyAdded = contacts.some(
-          contact => getPersonId(contact) === id
-        );
-
         addPersonCard(
           results,
           person,
-          alreadyAdded ? "Agregado" : "Agregar",
-          alreadyAdded || !id
-            ? null
-            : () => sendFriendRequest(id),
+          "Agregar",
+          () => sendFriendRequest(id),
           "Usuario de FamilyChat"
         );
       });
 
-      status(`Se encontraron ${users.length} usuario(s).`);
+      status(`Se encontraron ${users.length} usuario(s) nuevos.`);
 
     } catch (error) {
       console.error("ERROR BUSCANDO USUARIOS:", error);
@@ -262,9 +255,7 @@
     try {
       const { error } = await sb.rpc(
         "send_friend_request",
-        {
-          p_recipient_id: recipientId
-        }
+        { p_recipient_id: recipientId }
       );
 
       if (error) throw error;
@@ -291,9 +282,7 @@
     const list = $("friendRequestsList");
     list.innerHTML = "";
 
-    const { data, error } = await sb.rpc(
-      "list_friend_requests"
-    );
+    const { data, error } = await sb.rpc("list_friend_requests");
 
     if (error) {
       console.error("ERROR CARGANDO SOLICITUDES:", error);
@@ -347,9 +336,7 @@
       if (error) throw error;
 
       status(
-        accept
-          ? "¡Contacto agregado!"
-          : "Solicitud rechazada."
+        accept ? "¡Contacto agregado!" : "Solicitud rechazada."
       );
 
       await Promise.all([
@@ -360,7 +347,6 @@
 
     } catch (error) {
       console.error("ERROR PROCESANDO SOLICITUD:", error);
-
       status(error.message, "appStatus", true);
     }
   }
@@ -416,7 +402,6 @@
 
     if (error) {
       console.error("ERROR CARGANDO CONVERSACIONES:", error);
-
       status(error.message, "appStatus", true);
       return;
     }
@@ -424,6 +409,29 @@
     conversations = (data || [])
       .map(row => row.conversations)
       .filter(Boolean);
+
+    // Si otra persona borró el chat, cerrarlo también aquí
+    if (
+      active &&
+      !conversations.some(item => item.id === active.id)
+    ) {
+      active = null;
+
+      if (channel) {
+        await sb.removeChannel(channel);
+        channel = null;
+      }
+
+      $("messages").innerHTML = "";
+      $("messages").classList.add("hidden");
+      $("messageForm").classList.add("hidden");
+      $("emptyState").classList.remove("hidden");
+      $("chatTitle").textContent = "Selecciona un chat";
+
+      if (deleteChatBtn) {
+        deleteChatBtn.classList.add("hidden");
+      }
+    }
 
     const list = $("conversationList");
     list.innerHTML = "";
@@ -498,9 +506,7 @@
       );
 
       if (!conversation) {
-        throw new Error(
-          "El chat se creó, pero no aparece en la lista."
-        );
+        throw new Error("El chat se creó, pero no aparece en la lista.");
       }
 
       await openChat(conversation);
@@ -605,9 +611,7 @@
       );
 
       if (!conversation) {
-        throw new Error(
-          "El grupo se creó, pero no aparece en la lista."
-        );
+        throw new Error("El grupo se creó, pero no aparece en la lista.");
       }
 
       await openChat(conversation);
@@ -702,9 +706,7 @@
 
       await loadConversations();
 
-      status(
-        `¡${getPersonName(person)} fue agregado al grupo!`
-      );
+      status(`¡${getPersonName(person)} fue agregado al grupo!`);
 
     } catch (error) {
       console.error("ERROR AGREGANDO MIEMBRO:", error);
@@ -726,6 +728,35 @@
 
     $("chatTitle").textContent =
       conversation.title || "Conversación";
+
+    // Crear botón para borrar el chat
+    if (!deleteChatBtn) {
+      deleteChatBtn = document.createElement("button");
+
+      deleteChatBtn.type = "button";
+      deleteChatBtn.textContent = "🗑️ Borrar chat";
+      deleteChatBtn.title = "Eliminar chat para todos";
+
+      deleteChatBtn.style.marginLeft = "12px";
+      deleteChatBtn.style.background = "#8b3fa8";
+      deleteChatBtn.style.color = "white";
+      deleteChatBtn.style.border = "none";
+      deleteChatBtn.style.borderRadius = "9px";
+      deleteChatBtn.style.padding = "9px 13px";
+      deleteChatBtn.style.cursor = "pointer";
+
+      deleteChatBtn.addEventListener(
+        "click",
+        deleteActiveChat
+      );
+
+      $("chatTitle").insertAdjacentElement(
+        "afterend",
+        deleteChatBtn
+      );
+    }
+
+    deleteChatBtn.classList.remove("hidden");
 
     $("emptyState").classList.add("hidden");
     $("messages").classList.remove("hidden");
@@ -761,6 +792,75 @@
   }
 
   // =========================================
+  // BORRAR CHAT PARA TODOS
+  // =========================================
+
+  async function deleteActiveChat() {
+    if (!active || !deleteChatBtn) return;
+
+    const conversation = active;
+
+    const confirmed = confirm(
+      `¿Seguro que quieres borrar "${conversation.title || "este chat"}"?\n\n` +
+      "Se eliminará para TODOS los participantes y se borrarán sus mensajes. Esta acción no se puede deshacer."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      deleteChatBtn.disabled = true;
+
+      status("Eliminando chat para todos...");
+
+      const { data, error } = await sb.rpc(
+        "delete_familychat_conversation",
+        {
+          p_conversation_id: conversation.id
+        }
+      );
+
+      if (error) throw error;
+
+      if (data !== true) {
+        throw new Error("Supabase no confirmó la eliminación.");
+      }
+
+      if (channel) {
+        await sb.removeChannel(channel);
+        channel = null;
+      }
+
+      active = null;
+
+      $("messages").innerHTML = "";
+      $("messages").classList.add("hidden");
+      $("messageForm").classList.add("hidden");
+      $("emptyState").classList.remove("hidden");
+      $("chatTitle").textContent = "Selecciona un chat";
+
+      deleteChatBtn.classList.add("hidden");
+
+      await loadConversations();
+
+      status("Chat eliminado para todos.");
+
+    } catch (error) {
+      console.error("ERROR BORRANDO CHAT:", error);
+
+      status(
+        "No se pudo borrar el chat: " + error.message,
+        "appStatus",
+        true
+      );
+
+    } finally {
+      if (deleteChatBtn) {
+        deleteChatBtn.disabled = false;
+      }
+    }
+  }
+
+  // =========================================
   // CARGAR MENSAJES
   // =========================================
 
@@ -778,7 +878,6 @@
 
     if (error) {
       console.error("ERROR CARGANDO MENSAJES:", error);
-
       status(error.message, "appStatus", true);
       return;
     }
@@ -842,8 +941,8 @@
       input.value = body;
 
       console.error("ERROR ENVIANDO MENSAJE:", error);
-
       status(error.message, "appStatus", true);
+
     } else {
       await loadMessages();
     }
@@ -905,8 +1004,51 @@
     contacts = [];
     conversations = [];
 
+    if (deleteChatBtn) {
+      deleteChatBtn.classList.add("hidden");
+    }
+
     showLogin();
   }
+
+  // =========================================
+  // DISEÑO Y ESPACIO DE CHATS
+  // =========================================
+
+  const chatLayoutStyle = document.createElement("style");
+
+  chatLayoutStyle.textContent = `
+    #conversationList {
+      min-height: 300px;
+      max-height: 65vh;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    #contactsList {
+      max-height: 150px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .conversation-item {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #conversationList::-webkit-scrollbar,
+    #contactsList::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #conversationList::-webkit-scrollbar-thumb,
+    #contactsList::-webkit-scrollbar-thumb {
+      background: #8b3fa8;
+      border-radius: 10px;
+    }
+  `;
+
+  document.head.appendChild(chatLayoutStyle);
 
   // =========================================
   // INICIAR APLICACIÓN
@@ -954,6 +1096,10 @@
           refreshTimer = null;
         }
 
+        if (deleteChatBtn) {
+          deleteChatBtn.classList.add("hidden");
+        }
+
         showLogin();
       }
     });
@@ -988,7 +1134,6 @@
 
     } catch (error) {
       console.error("ERROR GOOGLE:", error);
-
       status(error.message, "loginStatus", true);
     }
   });
@@ -1025,9 +1170,7 @@
 
       const { error } = await sb.rpc(
         "redeem_invite",
-        {
-          p_code: code
-        }
+        { p_code: code }
       );
 
       if (error) throw error;
@@ -1038,7 +1181,6 @@
 
     } catch (error) {
       console.error("ERROR INVITACIÓN:", error);
-
       status(error.message, "loginStatus", true);
 
     } finally {
