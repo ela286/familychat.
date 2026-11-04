@@ -200,14 +200,13 @@
 
       if (error) throw error;
 
-      // Ocultar contactos que ya fueron agregados
       const contactIds = new Set(
         contacts.map(person => getPersonId(person))
       );
 
       const users = (data || []).filter(person => {
         const id = getPersonId(person);
-        return id && !contactIds.has(id);
+        return id && !contactIds.has(id) && id !== user.id;
       });
 
       if (!users.length) {
@@ -410,7 +409,6 @@
       .map(row => row.conversations)
       .filter(Boolean);
 
-    // Si otra persona borró el chat, cerrarlo también aquí
     if (
       active &&
       !conversations.some(item => item.id === active.id)
@@ -429,7 +427,7 @@
       $("chatTitle").textContent = "Selecciona un chat";
 
       if (deleteChatBtn) {
-        deleteChatBtn.classList.add("hidden");
+        deleteChatBtn.hidden = true;
       }
     }
 
@@ -720,6 +718,60 @@
   }
 
   // =========================================
+  // BOTÓN BORRAR CHAT
+  // =========================================
+
+  function createDeleteButton() {
+    if (deleteChatBtn) return deleteChatBtn;
+
+    deleteChatBtn = document.createElement("button");
+    deleteChatBtn.id = "deleteChatBtn";
+    deleteChatBtn.type = "button";
+    deleteChatBtn.textContent = "🗑️ Borrar chat";
+    deleteChatBtn.title = "Eliminar este chat para todos";
+
+    deleteChatBtn.style.display = "none";
+    deleteChatBtn.style.visibility = "visible";
+    deleteChatBtn.style.background = "#8b3fa8";
+    deleteChatBtn.style.color = "#ffffff";
+    deleteChatBtn.style.border = "none";
+    deleteChatBtn.style.borderRadius = "9px";
+    deleteChatBtn.style.padding = "10px 14px";
+    deleteChatBtn.style.margin = "10px 0 10px 12px";
+    deleteChatBtn.style.cursor = "pointer";
+    deleteChatBtn.style.fontWeight = "bold";
+    deleteChatBtn.style.flexShrink = "0";
+
+    deleteChatBtn.addEventListener("click", deleteActiveChat);
+
+    return deleteChatBtn;
+  }
+
+  function showDeleteButton() {
+    const button = createDeleteButton();
+    const title = $("chatTitle");
+
+    button.style.display = "inline-flex";
+    button.style.visibility = "visible";
+    button.hidden = false;
+
+    // Insertarlo en el encabezado del chat
+    const header = title.parentElement;
+
+    if (header) {
+      if (getComputedStyle(header).display === "block") {
+        header.style.display = "flex";
+        header.style.alignItems = "center";
+        header.style.flexWrap = "wrap";
+      }
+
+      if (title.nextElementSibling !== button) {
+        title.insertAdjacentElement("afterend", button);
+      }
+    }
+  }
+
+  // =========================================
   // ABRIR CHAT
   // =========================================
 
@@ -729,34 +781,7 @@
     $("chatTitle").textContent =
       conversation.title || "Conversación";
 
-    // Crear botón para borrar el chat
-    if (!deleteChatBtn) {
-      deleteChatBtn = document.createElement("button");
-
-      deleteChatBtn.type = "button";
-      deleteChatBtn.textContent = "🗑️ Borrar chat";
-      deleteChatBtn.title = "Eliminar chat para todos";
-
-      deleteChatBtn.style.marginLeft = "12px";
-      deleteChatBtn.style.background = "#8b3fa8";
-      deleteChatBtn.style.color = "white";
-      deleteChatBtn.style.border = "none";
-      deleteChatBtn.style.borderRadius = "9px";
-      deleteChatBtn.style.padding = "9px 13px";
-      deleteChatBtn.style.cursor = "pointer";
-
-      deleteChatBtn.addEventListener(
-        "click",
-        deleteActiveChat
-      );
-
-      $("chatTitle").insertAdjacentElement(
-        "afterend",
-        deleteChatBtn
-      );
-    }
-
-    deleteChatBtn.classList.remove("hidden");
+    showDeleteButton();
 
     $("emptyState").classList.add("hidden");
     $("messages").classList.remove("hidden");
@@ -838,7 +863,8 @@
       $("emptyState").classList.remove("hidden");
       $("chatTitle").textContent = "Selecciona un chat";
 
-      deleteChatBtn.classList.add("hidden");
+      deleteChatBtn.style.display = "none";
+      deleteChatBtn.hidden = true;
 
       await loadConversations();
 
@@ -1005,7 +1031,8 @@
     conversations = [];
 
     if (deleteChatBtn) {
-      deleteChatBtn.classList.add("hidden");
+      deleteChatBtn.style.display = "none";
+      deleteChatBtn.hidden = true;
     }
 
     showLogin();
@@ -1045,6 +1072,23 @@
     #contactsList::-webkit-scrollbar-thumb {
       background: #8b3fa8;
       border-radius: 10px;
+    }
+
+    #deleteChatBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 10;
+    }
+
+    #deleteChatBtn:hover {
+      background: #71318b !important;
+    }
+
+    #deleteChatBtn:disabled {
+      opacity: 0.6;
+      cursor: wait;
     }
   `;
 
@@ -1097,7 +1141,8 @@
         }
 
         if (deleteChatBtn) {
-          deleteChatBtn.classList.add("hidden");
+          deleteChatBtn.style.display = "none";
+          deleteChatBtn.hidden = true;
         }
 
         showLogin();
