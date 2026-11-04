@@ -13,9 +13,10 @@
   let contacts = [];
   let busy = false;
   let entering = false;
+  let refreshTimer = null;
 
   // =========================================
-  // MENSAJES Y UTILIDADES
+  // UTILIDADES
   // =========================================
 
   function status(message, target = "appStatus", bad = false) {
@@ -40,7 +41,8 @@
     return person.id ||
       person.user_id ||
       person.contact_id ||
-      person.requester_id;
+      person.requester_id ||
+      null;
   }
 
   function getPersonName(person) {
@@ -56,7 +58,7 @@
     if (error) throw error;
 
     if (!data.user) {
-      throw new Error("No hay una sesión de usuario activa.");
+      throw new Error("Debes iniciar sesión.");
     }
 
     return data.user;
@@ -89,13 +91,13 @@
       if (error) throw error;
 
       if (!profile) {
-        throw new Error("No encontramos tu perfil en FamilyChat.");
+        throw new Error("No encontramos tu perfil.");
       }
 
       if (!profile.invite_accepted) {
         showLogin();
         status(
-          "Tu cuenta todavía necesita una invitación válida.",
+          "Necesitas una invitación válida.",
           "loginStatus",
           true
         );
@@ -124,13 +126,15 @@
 
       status("FamilyChat está conectado.");
 
+      startRefresh();
+
     } finally {
       entering = false;
     }
   }
 
   // =========================================
-  // BUSCAR USUARIOS
+  // TARJETAS DE USUARIOS
   // =========================================
 
   function addPersonCard(
@@ -181,11 +185,16 @@
     return card;
   }
 
+  // =========================================
+  // BUSCAR USUARIOS
+  // =========================================
+
   async function searchUsers() {
     const term = $("userSearchInput").value.trim();
     const results = $("userSearchResults");
 
     results.innerHTML = "";
+
     $("searchUsersBtn").disabled = true;
 
     status("Buscando usuarios...");
@@ -193,7 +202,9 @@
     try {
       const { data, error } = await sb.rpc(
         "search_familychat_users",
-        { p_search: term }
+        {
+          p_search: term
+        }
       );
 
       if (error) throw error;
@@ -230,8 +241,13 @@
       status(`Se encontraron ${users.length} usuario(s).`);
 
     } catch (error) {
-      console.error("Error buscando usuarios:", error);
-      status("Error al buscar: " + error.message, "appStatus", true);
+      console.error("ERROR BUSCANDO USUARIOS:", error);
+
+      status(
+        "Error al buscar: " + error.message,
+        "appStatus",
+        true
+      );
 
     } finally {
       $("searchUsersBtn").disabled = false;
@@ -246,7 +262,9 @@
     try {
       const { error } = await sb.rpc(
         "send_friend_request",
-        { p_recipient_id: recipientId }
+        {
+          p_recipient_id: recipientId
+        }
       );
 
       if (error) throw error;
@@ -255,12 +273,12 @@
 
       await Promise.all([
         loadContacts(),
-        loadRequests(),
-        searchUsers()
+        loadRequests()
       ]);
 
     } catch (error) {
-      console.error(error);
+      console.error("ERROR ENVIANDO SOLICITUD:", error);
+
       status(
         "No se pudo enviar la solicitud: " + error.message,
         "appStatus",
@@ -278,7 +296,7 @@
     );
 
     if (error) {
-      console.error("Error cargando solicitudes:", error);
+      console.error("ERROR CARGANDO SOLICITUDES:", error);
       list.textContent = "No se pudieron cargar las solicitudes.";
       return;
     }
@@ -329,7 +347,9 @@
       if (error) throw error;
 
       status(
-        accept ? "¡Contacto agregado!" : "Solicitud rechazada."
+        accept
+          ? "¡Contacto agregado!"
+          : "Solicitud rechazada."
       );
 
       await Promise.all([
@@ -339,7 +359,8 @@
       ]);
 
     } catch (error) {
-      console.error(error);
+      console.error("ERROR PROCESANDO SOLICITUD:", error);
+
       status(error.message, "appStatus", true);
     }
   }
@@ -357,7 +378,7 @@
     );
 
     if (error) {
-      console.error("Error cargando contactos:", error);
+      console.error("ERROR CARGANDO CONTACTOS:", error);
       list.textContent = "No se pudieron cargar los contactos.";
       return;
     }
@@ -380,7 +401,7 @@
   }
 
   // =========================================
-  // CONVERSACIONES
+  // CARGAR CONVERSACIONES
   // =========================================
 
   async function loadConversations() {
@@ -394,7 +415,8 @@
       .eq("user_id", user.id);
 
     if (error) {
-      console.error("Error cargando conversaciones:", error);
+      console.error("ERROR CARGANDO CONVERSACIONES:", error);
+
       status(error.message, "appStatus", true);
       return;
     }
@@ -466,7 +488,7 @@
       if (error) throw error;
 
       if (!conversationId) {
-        throw new Error("No se recibió el ID de la conversación.");
+        throw new Error("Supabase no devolvió el ID del chat.");
       }
 
       await loadConversations();
@@ -486,7 +508,7 @@
       status("¡Chat privado creado correctamente!");
 
     } catch (error) {
-      console.error("ERROR CREANDO CHAT:", error);
+      console.error("ERROR CREANDO CHAT PRIVADO:", error);
 
       status(
         "No se pudo crear el chat: " + error.message,
@@ -539,7 +561,9 @@
         if (answer.trim()) {
           const indexes = [
             ...new Set(
-              answer.split(",").map(value => Number(value.trim()) - 1)
+              answer.split(",").map(
+                value => Number(value.trim()) - 1
+              )
             )
           ];
 
@@ -549,7 +573,7 @@
               index < 0 ||
               index >= available.length
           )) {
-            throw new Error("Uno de los números de contacto no es válido.");
+            throw new Error("Uno de los números no es válido.");
           }
 
           selected = indexes.map(
@@ -582,7 +606,7 @@
 
       if (!conversation) {
         throw new Error(
-          "El grupo se creó, pero no aparece en tus conversaciones."
+          "El grupo se creó, pero no aparece en la lista."
         );
       }
 
@@ -694,7 +718,7 @@
   }
 
   // =========================================
-  // MENSAJES
+  // ABRIR CHAT
   // =========================================
 
   async function openChat(conversation) {
@@ -736,21 +760,30 @@
     await loadConversations();
   }
 
+  // =========================================
+  // CARGAR MENSAJES
+  // =========================================
+
   async function loadMessages() {
-    if (!active) return;
+    if (!active || !user) return;
+
+    const conversationId = active.id;
 
     const { data, error } = await sb
       .from("messages")
       .select("*")
-      .eq("conversation_id", active.id)
+      .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true })
       .limit(200);
 
     if (error) {
       console.error("ERROR CARGANDO MENSAJES:", error);
+
       status(error.message, "appStatus", true);
       return;
     }
+
+    if (!active || active.id !== conversationId) return;
 
     const box = $("messages");
     box.innerHTML = "";
@@ -778,6 +811,10 @@
     box.scrollTop = box.scrollHeight;
   }
 
+  // =========================================
+  // ENVIAR MENSAJES
+  // =========================================
+
   async function sendMessage(event) {
     event.preventDefault();
 
@@ -789,23 +826,61 @@
 
     if (!body) return;
 
+    const conversationId = active.id;
+
     input.value = "";
 
     const { error } = await sb
       .from("messages")
       .insert({
-        conversation_id: active.id,
+        conversation_id: conversationId,
         sender_id: currentUser.id,
-        body
+        body: body
       });
 
     if (error) {
       input.value = body;
+
       console.error("ERROR ENVIANDO MENSAJE:", error);
+
       status(error.message, "appStatus", true);
     } else {
       await loadMessages();
     }
+  }
+
+  // =========================================
+  // ACTUALIZACIÓN AUTOMÁTICA
+  // =========================================
+
+  function startRefresh() {
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+    }
+
+    refreshTimer = window.setInterval(async () => {
+      if (!user || busy) return;
+
+      busy = true;
+
+      try {
+        await Promise.all([
+          loadContacts(),
+          loadRequests(),
+          loadConversations()
+        ]);
+
+        if (active) {
+          await loadMessages();
+        }
+
+      } catch (error) {
+        console.warn("ERROR ACTUALIZANDO:", error);
+
+      } finally {
+        busy = false;
+      }
+    }, 10000);
   }
 
   // =========================================
@@ -816,6 +891,11 @@
     if (channel) {
       await sb.removeChannel(channel);
       channel = null;
+    }
+
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
     }
 
     await sb.auth.signOut();
@@ -863,6 +943,17 @@
       if (event === "SIGNED_OUT") {
         user = null;
         active = null;
+
+        if (channel) {
+          sb.removeChannel(channel);
+          channel = null;
+        }
+
+        if (refreshTimer) {
+          clearInterval(refreshTimer);
+          refreshTimer = null;
+        }
+
         showLogin();
       }
     });
@@ -876,33 +967,16 @@
     } else {
       showLogin();
     }
-
-    // Actualizar contactos, solicitudes y conversaciones.
-    window.setInterval(async () => {
-      if (!user || busy) return;
-
-      busy = true;
-
-      try {
-        await Promise.all([
-          loadContacts(),
-          loadRequests(),
-          loadConversations()
-        ]);
-      } catch (error) {
-        console.warn("Error actualizando FamilyChat:", error);
-      } finally {
-        busy = false;
-      }
-    }, 10000);
   }
 
   // =========================================
-  // BOTONES
+  // BOTÓN GOOGLE
   // =========================================
 
   $("googleBtn").addEventListener("click", async () => {
     try {
+      if (!sb) throw new Error("Supabase todavía no está listo.");
+
       const { error } = await sb.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -913,10 +987,15 @@
       if (error) throw error;
 
     } catch (error) {
-      console.error(error);
+      console.error("ERROR GOOGLE:", error);
+
       status(error.message, "loginStatus", true);
     }
   });
+
+  // =========================================
+  // VALIDAR INVITACIÓN
+  // =========================================
 
   $("inviteBtn").addEventListener("click", async () => {
     try {
@@ -941,11 +1020,14 @@
       }
 
       $("inviteBtn").disabled = true;
+
       status("Validando invitación...", "loginStatus");
 
       const { error } = await sb.rpc(
         "redeem_invite",
-        { p_code: code }
+        {
+          p_code: code
+        }
       );
 
       if (error) throw error;
@@ -955,7 +1037,8 @@
       await enter(currentUser);
 
     } catch (error) {
-      console.error(error);
+      console.error("ERROR INVITACIÓN:", error);
+
       status(error.message, "loginStatus", true);
 
     } finally {
@@ -963,17 +1046,28 @@
     }
   });
 
+  // =========================================
+  // BOTÓN BUSCAR
+  // =========================================
+
   $("searchUsersBtn").addEventListener(
     "click",
     searchUsers
   );
 
-  $("userSearchInput").addEventListener("keydown", event => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchUsers();
+  $("userSearchInput").addEventListener(
+    "keydown",
+    event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchUsers();
+      }
     }
-  });
+  );
+
+  // =========================================
+  // BOTONES DE GRUPOS
+  // =========================================
 
   $("newGroupBtn").addEventListener(
     "click",
@@ -985,22 +1079,33 @@
     addGroupMember
   );
 
+  // =========================================
+  // FORMULARIO DE MENSAJES
+  // =========================================
+
   $("messageForm").addEventListener(
     "submit",
     event => {
       sendMessage(event).catch(error => {
-        console.error(error);
+        console.error("ERROR ENVIANDO MENSAJE:", error);
         status(error.message, "appStatus", true);
       });
     }
   );
 
-  $("logoutBtn").addEventListener("click", () => {
-    logout().catch(error => {
-      console.error(error);
-      status(error.message, "appStatus", true);
-    });
-  });
+  // =========================================
+  // CERRAR SESIÓN
+  // =========================================
+
+  $("logoutBtn").addEventListener(
+    "click",
+    () => {
+      logout().catch(error => {
+        console.error("ERROR CERRANDO SESIÓN:", error);
+        status(error.message, "appStatus", true);
+      });
+    }
+  );
 
   // =========================================
   // EJECUTAR
