@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#8052b8">
   <title>FamilyChat</title>
+
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg">
   <link rel="stylesheet" href="styles.css">
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script defer src="app.js"></script>
 </head>
+
 <body>
+
   <main id="loginView" class="login-shell">
     <section class="welcome">
       <div class="brand-mark">💜</div>
       <p class="eyebrow">TU FAMILIA, SIEMPRE CONECTADA</p>
       <h1>Tu gente.<br><span>Tu espacio privado.</span></h1>
-      <p class="intro">Habla con las personas que eliges, crea grupos y comparte momentos desde tu teléfono o computadora.</p>
+      <p class="intro">
+        Habla con las personas que eliges, crea grupos y comparte
+        momentos desde tu teléfono o computadora.
+      </p>
       <div class="feature-row">
         <span>🔒 Chats privados</span>
         <span>👥 Grupos</span>
@@ -29,20 +36,36 @@
     <section class="login-card">
       <h2>Bienvenido a FamilyChat</h2>
       <p>Entra con tu cuenta de Google para continuar.</p>
-      <button id="googleBtn" class="google-button">
+
+      <button id="googleBtn" class="google-button" type="button">
         <b class="google-g">G</b> Continuar con Google
       </button>
+
       <div class="separator">ACCESO PRIVADO</div>
+
       <label for="inviteInput">Clave de invitación</label>
-      <input id="inviteInput" placeholder="Introduce tu clave" autocomplete="off">
-      <button id="inviteBtn" class="primary-button">Validar invitación</button>
-      <p class="muted small">Primero inicia sesión con Google. Después podrás validar tu invitación.</p>
+      <input
+        id="inviteInput"
+        placeholder="Introduce tu clave"
+        autocomplete="off"
+      >
+
+      <button id="inviteBtn" class="primary-button" type="button">
+        Validar invitación
+      </button>
+
+      <p class="muted small">
+        Primero inicia sesión con Google. Después podrás validar tu invitación.
+      </p>
+
       <p id="loginStatus" class="status"></p>
     </section>
   </main>
 
   <main id="appView" class="app-shell hidden">
+
     <aside class="sidebar">
+
       <div class="sidebar-brand">
         <div class="brand-mark small-mark">💜</div>
         <strong>FamilyChat</strong>
@@ -50,53 +73,86 @@
 
       <div class="profile-block">
         <img id="avatar" class="avatar" alt="Foto de perfil">
+
         <div class="profile-copy">
           <strong id="profileName">Usuario</strong>
           <span id="profileEmail"></span>
         </div>
-        <button id="logoutBtn" class="icon-button" title="Cerrar sesión">↪</button>
+
+        <button id="logoutBtn" class="icon-button" title="Cerrar sesión">
+          ↪
+        </button>
       </div>
 
       <section class="contacts-section">
+
         <div class="side-heading">CONTACTOS</div>
+
         <div class="contact-search">
-          <input id="userSearchInput" type="search" placeholder="Buscar personas..." autocomplete="off">
-          <button id="searchUsersBtn" class="search-button">🔎</button>
+          <input
+            id="userSearchInput"
+            type="search"
+            placeholder="Buscar personas..."
+            autocomplete="off"
+          >
+          <button id="searchUsersBtn" class="search-button" type="button">
+            🔎
+          </button>
         </div>
+
         <div id="userSearchResults" class="contact-list">
           <p class="muted small">Busca personas para agregarlas.</p>
         </div>
 
-        <div class="side-heading">SOLICITUDES <span id="requestCount"></span></div>
+        <div class="side-heading">
+          SOLICITUDES <span id="requestCount"></span>
+        </div>
+
         <div id="friendRequestsList" class="contact-list">
           <p class="muted small">No tienes solicitudes pendientes.</p>
         </div>
 
         <div class="side-heading">MIS CONTACTOS</div>
+
         <div id="contactsList" class="contact-list">
           <p class="muted small">Todavía no tienes contactos.</p>
         </div>
+
       </section>
 
       <div class="side-heading">TUS CONVERSACIONES</div>
+
       <div id="conversationList" class="conversation-list">
         <p class="muted small">Todavía no tienes conversaciones.</p>
       </div>
 
-      <button id="newGroupBtn" class="secondary-button" type="button">＋ Crear grupo</button>
-      <button id="gamesBtn" class="secondary-button" type="button">🎮 Jugar</button>
+      <button id="newGroupBtn" class="secondary-button" type="button">
+        ＋ Crear grupo
+      </button>
+
+      <button id="gamesBtn" class="secondary-button" type="button">
+        🎮 Juegos
+      </button>
+
     </aside>
 
     <section class="chat-panel">
+
       <header class="chat-header">
         <div>
           <p class="eyebrow">TU ESPACIO PRIVADO</p>
           <h2 id="chatTitle">Bienvenido</h2>
         </div>
+
         <div class="chat-actions">
-          <button id="addGroupMemberBtn" class="secondary-button hidden" type="button">
+          <button
+            id="addGroupMemberBtn"
+            class="secondary-button hidden"
+            type="button"
+          >
             ＋ Agregar personas
           </button>
+
           <span class="online-pill">● Conectado</span>
         </div>
       </header>
@@ -104,58 +160,93 @@
       <div id="emptyState" class="empty-state">
         <div class="empty-icon">💬</div>
         <h3>Un espacio para tu familia</h3>
-        <p>Busca personas, agrega contactos o crea un grupo para comenzar a conversar.</p>
+        <p>
+          Busca personas, agrega contactos o crea un grupo
+          para comenzar a conversar.
+        </p>
       </div>
 
       <div id="messages" class="messages hidden"></div>
 
       <form id="messageForm" class="message-form hidden">
-        <input id="messageInput" placeholder="Escribe un mensaje..." maxlength="4000" autocomplete="off">
+        <input
+          id="messageInput"
+          placeholder="Escribe un mensaje..."
+          maxlength="4000"
+          autocomplete="off"
+        >
         <button class="send-button" type="submit">➤</button>
       </form>
 
       <p id="appStatus" class="status app-status"></p>
 
+      <!-- JUEGOS -->
       <section id="gamesPanel" class="games-panel hidden">
-        <div class="games-top">
+
+        <header class="games-heading">
           <div>
             <p class="eyebrow">FAMILYCHAT ARCADE</p>
-            <h2>🍄 Aventura Pixel</h2>
-            <p>Salta, recoge monedas y llega al final del nivel.</p>
+            <h2>🎮 Zona de juegos</h2>
+            <p>¡Diviértete jugando en FamilyChat!</p>
           </div>
-          <button id="backToChatBtn" class="secondary-button" type="button">
-            Volver al chat
-          </button>
-        </div>
 
-        <div class="game-score">
+          <button
+            id="backToChatBtn"
+            class="secondary-button"
+            type="button"
+          >
+            ← Volver al chat
+          </button>
+        </header>
+
+        <div class="game-info">
           <span id="gameScore">Monedas: 0</span>
           <span id="gameLives">Vidas: 3</span>
           <span id="gameLevel">Nivel: 1</span>
         </div>
 
-        <canvas id="platformCanvas" width="900" height="400" aria-label="Juego de plataformas"></canvas>
-
-        <div class="game-buttons">
-          <button id="gameLeft" type="button" aria-label="Mover a la izquierda">◀</button>
-          <button id="gameJump" type="button">⬆ SALTAR</button>
-          <button id="gameRight" type="button" aria-label="Mover a la derecha">▶</button>
+        <div class="game-screen">
+          <canvas
+            id="platformCanvas"
+            width="800"
+            height="420"
+            aria-label="Juego de plataformas"
+          ></canvas>
         </div>
 
-        <button id="restartPlatformGame" class="primary-button" type="button">
-          🔄 Reiniciar juego
+        <p id="platformMessage" class="game-message">
+          ¡Consigue las monedas y llega a la meta!
+        </p>
+
+        <div class="game-controls">
+          <button id="gameLeft" type="button">⬅️</button>
+          <button id="gameRight" type="button">➡️</button>
+          <button id="gameJump" type="button">⬆️ Saltar</button>
+        </div>
+
+        <button
+          id="restartPlatformGame"
+          class="primary-button"
+          type="button"
+        >
+          ↻ Reiniciar juego
         </button>
-        <p id="platformMessage">¡Consigue las monedas y llega a la meta!</p>
+
       </section>
+
     </section>
+
   </main>
 
   <script>
     if ("serviceWorker" in navigator) {
       addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js").catch(console.warn);
+        navigator.serviceWorker
+          .register("./sw.js")
+          .catch(console.warn);
       });
     }
   </script>
+
 </body>
 </html>
