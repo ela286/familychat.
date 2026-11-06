@@ -587,13 +587,15 @@ input:focus {
   flex-shrink: 0;
 }
 
-/* FAMILYCHAT ARCADE */
+/* ZONA DE JUEGOS */
 
 .games-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px;
+  overflow-x: hidden;
+  padding: 22px;
+  background: var(--panel);
 }
 
 .games-heading {
@@ -602,17 +604,105 @@ input:focus {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 22px;
 }
 
 .games-heading h2 {
   margin: 0;
+  font-size: 25px;
 }
 
 .games-heading p:not(.eyebrow) {
   color: var(--muted);
+  margin-bottom: 0;
 }
 
 .games-heading .secondary-button {
+  width: auto;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+/* TARJETAS DE LOS CUATRO JUEGOS */
+
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+}
+
+.game-card {
+  min-width: 0;
+  min-height: 190px;
+  padding: 22px;
+  border-radius: 20px;
+  background: #eeedf1;
+  border: 1px solid var(--line);
+  color: var(--dark);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  transition: transform .18s ease, background .18s ease, box-shadow .18s ease;
+}
+
+.game-card:hover {
+  transform: translateY(-4px);
+  background: var(--pale);
+  box-shadow: 0 10px 25px #29233316;
+}
+
+.game-card-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  background: white;
+  border-radius: 17px;
+  font-size: 32px;
+}
+
+.game-card strong {
+  font-size: 18px;
+}
+
+.game-card > span:not(.game-card-icon) {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.game-card small {
+  color: var(--purple);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-top: auto;
+}
+
+/* PANTALLA DE CADA JUEGO */
+
+.active-game-panel {
+  width: 100%;
+}
+
+.active-game-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.active-game-heading h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.active-game-heading .secondary-button,
+.active-game-heading .primary-button {
   width: auto;
   margin: 0;
   padding: 10px 14px;
@@ -628,6 +718,7 @@ input:focus {
   margin: 15px 0;
   border-radius: 12px;
   font-weight: 800;
+  font-size: 13px;
 }
 
 .game-screen {
@@ -651,6 +742,7 @@ input:focus {
   text-align: center;
   color: var(--purple);
   font-weight: 700;
+  min-height: 20px;
 }
 
 .game-controls {
@@ -675,21 +767,17 @@ input:focus {
   min-width: 125px;
 }
 
-#restartPlatformGame {
-  max-width: 260px;
-  display: block;
-  margin: 12px auto;
-}
-
 /* SCROLLBARS */
 
 .conversation-list::-webkit-scrollbar,
-.contacts-section::-webkit-scrollbar {
+.contacts-section::-webkit-scrollbar,
+.games-panel::-webkit-scrollbar {
   width: 6px;
 }
 
 .conversation-list::-webkit-scrollbar-thumb,
-.contacts-section::-webkit-scrollbar-thumb {
+.contacts-section::-webkit-scrollbar-thumb,
+.games-panel::-webkit-scrollbar-thumb {
   background: #c4b2d8;
   border-radius: 10px;
 }
@@ -822,6 +910,36 @@ input:focus {
 
   .games-panel {
     padding: 12px;
+  }
+
+  .games-heading h2 {
+    font-size: 21px;
+  }
+
+  .games-grid {
+    grid-template-columns: 1fr;
+    gap: 11px;
+  }
+
+  .game-card {
+    min-height: 155px;
+    padding: 17px;
+  }
+
+  .game-card-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 27px;
+  }
+
+  .active-game-heading {
+    justify-content: center;
+  }
+
+  .active-game-heading h3 {
+    width: 100%;
+    text-align: center;
+    order: -1;
   }
 
   #platformCanvas {
