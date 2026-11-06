@@ -22,7 +22,8 @@ body {
   min-height: 100vh;
 }
 
-button, input {
+button,
+input {
   font: inherit;
 }
 
@@ -40,7 +41,7 @@ button:disabled {
   display: none !important;
 }
 
-/* INICIO DE SESIÓN */
+/* LOGIN */
 
 .login-shell {
   min-height: 100vh;
@@ -198,7 +199,7 @@ input:focus {
   color: var(--purple);
 }
 
-/* APLICACIÓN */
+/* ESTRUCTURA PRINCIPAL */
 
 .app-shell {
   height: 100vh;
@@ -283,6 +284,7 @@ input:focus {
   background: transparent;
   color: var(--muted);
   font-size: 21px;
+  flex-shrink: 0;
 }
 
 .side-heading {
@@ -298,12 +300,13 @@ input:focus {
 
 .contacts-section {
   overflow-y: auto;
-  max-height: 48%;
-  flex-shrink: 0;
+  max-height: 42%;
+  flex: 0 1 auto;
+  flex-shrink: 1;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
   margin-bottom: 8px;
-  min-height: 0;
+  min-height: 65px;
 }
 
 .contact-search {
@@ -381,16 +384,24 @@ input:focus {
   background: #dfd2ee;
 }
 
-/* CONVERSACIONES: LISTA DESPLAZABLE */
+/* LISTA DE CONVERSACIONES */
+
+.conversations-heading {
+  margin-top: 10px;
+  margin-bottom: 7px;
+}
 
 .conversation-list {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1 1 auto;
-  min-height: 90px;
+  flex: 1 1 0;
+  min-height: 0;
   max-height: none;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  padding-right: 3px;
 }
 
 .conversation-item {
@@ -425,7 +436,7 @@ input:focus {
 .secondary-button {
   background: var(--pale);
   color: var(--purple);
-  margin-top: 12px;
+  margin-top: 10px;
   flex-shrink: 0;
 }
 
@@ -553,6 +564,7 @@ input:focus {
   border-radius: 12px;
   font-size: 20px;
   margin: 0;
+  flex-shrink: 0;
 }
 
 .app-status {
@@ -560,7 +572,7 @@ input:focus {
   flex-shrink: 0;
 }
 
-/* JUEGO */
+/* FAMILYCHAT ARCADE */
 
 .games-panel {
   flex: 1;
@@ -569,7 +581,7 @@ input:focus {
   padding: 20px;
 }
 
-.games-top {
+.games-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -577,21 +589,21 @@ input:focus {
   flex-wrap: wrap;
 }
 
-.games-top h2 {
+.games-heading h2 {
   margin: 0;
 }
 
-.games-top p {
+.games-heading p:not(.eyebrow) {
   color: var(--muted);
 }
 
-.games-top .secondary-button {
+.games-heading .secondary-button {
   width: auto;
   margin: 0;
   padding: 10px 14px;
 }
 
-.game-score {
+.game-info {
   display: flex;
   justify-content: space-around;
   gap: 10px;
@@ -601,6 +613,12 @@ input:focus {
   margin: 15px 0;
   border-radius: 12px;
   font-weight: 800;
+}
+
+.game-screen {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
 }
 
 #platformCanvas {
@@ -614,14 +632,20 @@ input:focus {
   touch-action: none;
 }
 
-.game-buttons {
+.game-message {
+  text-align: center;
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.game-controls {
   display: flex;
   justify-content: center;
   gap: 15px;
   margin: 15px 0;
 }
 
-.game-buttons button {
+.game-controls button {
   min-width: 65px;
   min-height: 55px;
   border-radius: 14px;
@@ -636,13 +660,26 @@ input:focus {
   min-width: 125px;
 }
 
-#platformMessage {
-  text-align: center;
-  color: var(--purple);
-  font-weight: 700;
+#restartPlatformGame {
+  max-width: 260px;
+  display: block;
+  margin: 12px auto;
 }
 
-/* MÓVILES */
+/* SCROLLBARS */
+
+.conversation-list::-webkit-scrollbar,
+.contacts-section::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-list::-webkit-scrollbar-thumb,
+.contacts-section::-webkit-scrollbar-thumb {
+  background: #c4b2d8;
+  border-radius: 10px;
+}
+
+/* TELEFONOS Y TABLETS */
 
 @media (max-width: 760px) {
   .login-shell {
@@ -668,14 +705,13 @@ input:focus {
     min-height: 0;
     padding: 8px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 46%) minmax(0, 1fr);
+    grid-template-rows: minmax(210px, 44%) minmax(0, 1fr);
     gap: 8px;
   }
 
   .sidebar {
     padding: 12px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
   .sidebar-brand {
@@ -683,24 +719,45 @@ input:focus {
   }
 
   .profile-block {
-    margin: 0 0 8px;
+    margin: 0 0 7px;
+    padding: 7px;
+  }
+
+  .avatar {
+    width: 34px;
+    height: 34px;
   }
 
   .contacts-section {
-    max-height: 115px;
+    max-height: 105px;
     min-height: 0;
+    flex: 0 1 auto;
     overflow-y: auto;
+    padding-bottom: 5px;
+    margin-bottom: 4px;
   }
 
   .side-heading {
-    margin: 7px 0;
+    margin: 6px 0;
   }
 
-  #conversationList {
+  .contact-list {
+    margin: 5px 0 7px;
+  }
+
+  .contact-item {
+    padding: 6px;
+  }
+
+  .conversations-heading {
+    margin: 5px 0;
+  }
+
+  .conversation-list {
     display: flex;
     flex-direction: column;
-    flex: 1 1 110px;
-    min-height: 85px;
+    flex: 1 1 0;
+    min-height: 0;
     max-height: none;
     overflow-y: auto;
     overflow-x: hidden;
@@ -748,5 +805,14 @@ input:focus {
 
   #platformCanvas {
     max-height: 42vh;
+  }
+
+  .game-controls {
+    gap: 8px;
+  }
+
+  .game-controls button {
+    min-width: 55px;
+    min-height: 50px;
   }
 }
