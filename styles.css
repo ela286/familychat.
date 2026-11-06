@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -203,7 +204,7 @@ input:focus {
 
 .app-shell {
   height: 100vh;
-  min-height: 570px;
+  min-height: 0;
   padding: 20px;
   display: grid;
   grid-template-columns: 310px minmax(0, 1fr);
@@ -220,6 +221,7 @@ input:focus {
 }
 
 .sidebar {
+  height: 100%;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -300,13 +302,14 @@ input:focus {
 
 .contacts-section {
   overflow-y: auto;
-  max-height: 42%;
+  max-height: 30%;
   flex: 0 1 auto;
   flex-shrink: 1;
+  min-height: 0;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
   margin-bottom: 8px;
-  min-height: 65px;
+  overscroll-behavior: contain;
 }
 
 .contact-search {
@@ -433,15 +436,27 @@ input:focus {
   flex-shrink: 0;
 }
 
+/* BOTONES INFERIORES */
+
 .secondary-button {
   background: var(--pale);
   color: var(--purple);
-  margin-top: 10px;
+  margin-top: 8px;
   flex-shrink: 0;
+  display: block;
+  width: 100%;
 }
 
 .secondary-button:hover {
   background: #dfd2ee;
+}
+
+.sidebar > #newGroupBtn,
+.sidebar > #gamesBtn {
+  flex: 0 0 auto;
+  width: 100%;
+  margin-top: 8px;
+  position: relative;
 }
 
 /* CHAT */
@@ -710,8 +725,10 @@ input:focus {
   }
 
   .sidebar {
+    height: 100%;
     padding: 12px;
     overflow: hidden;
+    min-height: 0;
   }
 
   .sidebar-brand {
@@ -729,7 +746,7 @@ input:focus {
   }
 
   .contacts-section {
-    max-height: 105px;
+    max-height: 85px;
     min-height: 0;
     flex: 0 1 auto;
     overflow-y: auto;
@@ -769,7 +786,11 @@ input:focus {
     padding: 7px 9px;
   }
 
-  .sidebar > .secondary-button {
+  .sidebar > #newGroupBtn,
+  .sidebar > #gamesBtn {
+    display: block;
+    width: 100%;
+    flex: 0 0 auto;
     margin-top: 5px;
     padding: 8px;
   }
