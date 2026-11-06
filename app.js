@@ -1,4 +1,3 @@
-
 (() => {
   "use strict";
 
@@ -755,7 +754,6 @@
     button.style.visibility = "visible";
     button.hidden = false;
 
-    // Insertarlo en el encabezado del chat
     const header = title.parentElement;
 
     if (header) {
@@ -1023,6 +1021,7 @@
       refreshTimer = null;
     }
 
+    stopPlatformGame();
     await sb.auth.signOut();
 
     user = null;
@@ -1046,9 +1045,11 @@
 
   chatLayoutStyle.textContent = `
     #conversationList {
-      min-height: 300px;
-      max-height: 65vh;
+      flex: 1 1 auto;
+      min-height: 90px;
+      max-height: none;
       overflow-y: auto;
+      overscroll-behavior: contain;
       scrollbar-width: thin;
     }
 
@@ -1090,9 +1091,425 @@
       opacity: 0.6;
       cursor: wait;
     }
+
+    @media (max-width: 760px) {
+      #conversationList {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 150px;
+        min-height: 100px;
+        max-height: none;
+        overflow-y: auto;
+      }
+
+      .conversation-item {
+        width: 100%;
+        min-width: 0;
+        flex: 0 0 auto;
+      }
+
+      .sidebar {
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+    }
   `;
 
   document.head.appendChild(chatLayoutStyle);
+
+  // =========================================
+  // FAMILYCHAT ARCADE - AVENTURA PIXEL
+  // =========================================
+
+  let platformRunning = false;
+  let platformFrame = null;
+  let platformKeys = { left: false, right: false, jump: false };
+
+  function showGames() {
+    $("emptyState").classList.add("hidden");
+    $("messages").classList.add("hidden");
+    $("messageForm").classList.add("hidden");
+    $("gamesPanel").classList.remove("hidden");
+    $("appStatus").classList.add("hidden");
+    startPlatformGame();
+  }
+
+  function hideGames() {
+    stopPlatformGame();
+    $("gamesPanel").classList.add("hidden");
+    $("appStatus").classList.remove("hidden");
+
+    if (active) {
+      $("emptyState").classList.add("hidden");
+      $("messages").classList.remove("hidden");
+      $("messageForm").classList.remove("hidden");
+    } else {
+      $("emptyState").classList.remove("hidden");
+      $("messages").classList.add("hidden");
+      $("messageForm").classList.add("hidden");
+    }
+  }
+
+  function startPlatformGame() {
+    stopPlatformGame();
+
+    const canvas = $("platformCanvas");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width;
+    const H = canvas.height;
+    const worldWidth = 2600;
+
+    let score = 0;
+    let lives = 3;
+    let camera = 0;
+    let finished = false;
+
+    const player = {
+      x: 55,
+      y: 280,
+      w: 26,
+      h: 36,
+      vx: 0,
+      vy: 0,
+      grounded: false
+    };
+
+    const platforms = [
+      {x:0,y:355,w:worldWidth,h:60},
+      {x:250,y:285,w:135,h:18},
+      {x:485,y:235,w:135,h:18},
+      {x:730,y:290,w:150,h:18},
+      {x:1010,y:245,w:145,h:18},
+      {x:1300,y:290,w:160,h:18},
+      {x:1600,y:235,w:145,h:18},
+      {x:1900,y:285,w:160,h:18}
+    ];
+
+    const coins = [
+      280,520,770,1060,1350,1650,1950,2180
+    ].map((x,i) => ({
+      x,
+      y:[245,195,250,205,250,195,245,300][i],
+      taken:false
+    }));
+
+    const pipes = [
+      {x:420,y:300,w:55,h:55},
+      {x:920,y:305,w:60,h:50},
+      {x:1510,y:295,w:60,h:60}
+    ];
+
+    const enemies = [
+      {x:650,y:327,vx:1.3,alive:true},
+      {x:1190,y:327,vx:1.5,alive:true},
+      {x:1810,y:327,vx:1.7,alive:true}
+    ];
+
+    const goal = {x:2420,y:235,w:12,h:120};
+
+    const hit = (a,b) =>
+      a.x < b.x+b.w &&
+      a.x+a.w > b.x &&
+      a.y < b.y+b.h &&
+      a.y+a.h > b.y;
+
+    function update() {
+      if (finished) return;
+
+      player.vx =
+        (platformKeys.right ? 4 : 0) -
+        (platformKeys.left ? 4 : 0);
+
+      if (platformKeys.jump && player.grounded) {
+        player.vy = -11;
+        player.grounded = false;
+      }
+
+      const oldY = player.y;
+
+      player.x = Math.max(
+        0,
+        Math.min(worldWidth-player.w, player.x+player.vx)
+      );
+
+      player.vy = Math.min(12, player.vy + 0.48);
+      player.y += player.vy;
+      player.grounded = false;
+
+      if (player.vy >= 0) {
+        for (const p of platforms) {
+          if (
+            oldY+player.h <= p.y+5 &&
+            player.y+player.h >= p.y &&
+            player.x+player.w > p.x &&
+            player.x < p.x+p.w
+          ) {
+            player.y = p.y-player.h;
+            player.vy = 0;
+            player.grounded = true;
+          }
+        }
+      }
+
+      if (player.y > H+80) {
+        loseLife();
+        return;
+      }
+
+      for (const c of coins) {
+        if (
+          !c.taken &&
+          Math.abs((player.x+13)-c.x) < 19 &&
+          Math.abs((player.y+15)-c.y) < 25
+        ) {
+          c.taken = true;
+          score += 10;
+        }
+      }
+
+      for (const e of enemies) {
+        if (!e.alive) continue;
+
+        e.x += e.vx;
+
+        if (e.x < 560 || e.x > 2200) {
+          e.vx *= -1;
+        }
+
+        if (hit(player,{x:e.x,y:e.y,w:27,h:27})) {
+          if (player.vy > 0 && oldY+player.h <= e.y+12) {
+            e.alive = false;
+            player.vy = -7;
+            score += 20;
+          } else {
+            loseLife();
+            return;
+          }
+        }
+      }
+
+      if (hit(player,goal)) {
+        finished = true;
+        $("platformMessage").textContent =
+          "🏆 ¡Ganaste! Pulsa Reiniciar para volver a jugar.";
+      }
+
+      camera = Math.max(
+        0,
+        Math.min(player.x-W*0.35,worldWidth-W)
+      );
+
+      $("gameScore").textContent = "Monedas: " + score;
+      $("gameLives").textContent = "Vidas: " + lives;
+      $("gameLevel").textContent = "Nivel: 1";
+    }
+
+    function loseLife() {
+      lives--;
+      $("gameLives").textContent = "Vidas: " + lives;
+
+      if (lives <= 0) {
+        finished = true;
+        $("platformMessage").textContent =
+          "💔 Fin del juego. Pulsa Reiniciar.";
+      } else {
+        player.x = Math.max(40,camera+40);
+        player.y = 220;
+        player.vy = 0;
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = "#8297f5";
+      ctx.fillRect(0,0,W,H);
+
+      // Nubes
+      for (let i=0;i<8;i++) {
+        let x = (i*260-camera*.35)%(W+100);
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(x,70,22,0,Math.PI*2);
+        ctx.arc(x+25,60,28,0,Math.PI*2);
+        ctx.arc(x+52,72,22,0,Math.PI*2);
+        ctx.fill();
+      }
+
+      ctx.save();
+      ctx.translate(-camera,0);
+
+      // Colinas
+      for (let i=0;i<10;i++) {
+        ctx.fillStyle = "#49b832";
+        ctx.beginPath();
+        ctx.arc(i*300+100,365,95,Math.PI,0);
+        ctx.fill();
+      }
+
+      // Plataformas
+      for (const p of platforms) {
+        ctx.fillStyle = "#b96c32";
+        ctx.fillRect(p.x,p.y,p.w,p.h);
+        ctx.strokeStyle = "#39251e";
+        ctx.lineWidth = 3;
+
+        for (let x=p.x;x<p.x+p.w;x+=35) {
+          ctx.strokeRect(x,p.y,35,18);
+          ctx.strokeRect(x,p.y+18,35,18);
+        }
+      }
+
+      // Tuberías
+      for (const p of pipes) {
+        ctx.fillStyle = "#20ad27";
+        ctx.fillRect(p.x,p.y,p.w,p.h);
+        ctx.fillStyle = "#77e83c";
+        ctx.fillRect(p.x+9,p.y+8,12,p.h-8);
+        ctx.strokeStyle = "#145e18";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(p.x,p.y,p.w,p.h);
+      }
+
+      // Monedas
+      for (const c of coins) {
+        if (c.taken) continue;
+
+        ctx.fillStyle = "#ffdc35";
+        ctx.beginPath();
+        ctx.ellipse(c.x,c.y,8,13,0,0,Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = "#a76b16";
+        ctx.stroke();
+      }
+
+      // Enemigos
+      for (const e of enemies) {
+        if (!e.alive) continue;
+
+        ctx.fillStyle = "#8d3d9c";
+        ctx.beginPath();
+        ctx.arc(e.x+13,e.y+13,14,Math.PI,0);
+        ctx.fill();
+        ctx.fillRect(e.x,e.y+13,27,14);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(e.x+5,e.y+7,5,5);
+        ctx.fillRect(e.x+17,e.y+7,5,5);
+      }
+
+      // Meta
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(goal.x,goal.y,5,120);
+      ctx.fillStyle = "#e64d6a";
+      ctx.beginPath();
+      ctx.moveTo(goal.x+5,goal.y);
+      ctx.lineTo(goal.x+55,goal.y+20);
+      ctx.lineTo(goal.x+5,goal.y+40);
+      ctx.fill();
+
+      // Personaje original
+      ctx.fillStyle = "#63399b";
+      ctx.fillRect(player.x+4,player.y,20,9);
+      ctx.fillStyle = "#f2bd8b";
+      ctx.fillRect(player.x+5,player.y+8,18,12);
+      ctx.fillStyle = "#e94c52";
+      ctx.fillRect(player.x,player.y+20,27,13);
+      ctx.fillStyle = "#292730";
+      ctx.fillRect(player.x+4,player.y+32,8,4);
+      ctx.fillRect(player.x+17,player.y+32,8,4);
+
+      ctx.restore();
+    }
+
+    function loop() {
+      if (!platformRunning) return;
+
+      update();
+      draw();
+
+      if (!finished) {
+        platformFrame = requestAnimationFrame(loop);
+      }
+    }
+
+    platformRunning = true;
+    platformKeys = {left:false,right:false,jump:false};
+
+    $("gameScore").textContent = "Monedas: 0";
+    $("gameLives").textContent = "Vidas: 3";
+    $("gameLevel").textContent = "Nivel: 1";
+    $("platformMessage").textContent =
+      "¡A jugar! Usa las flechas o los botones para moverte y saltar.";
+
+    loop();
+  }
+
+  function stopPlatformGame() {
+    platformRunning = false;
+
+    if (platformFrame) {
+      cancelAnimationFrame(platformFrame);
+    }
+
+    platformFrame = null;
+    platformKeys = {left:false,right:false,jump:false};
+  }
+
+  function bindGameHold(id,key) {
+    const element = $(id);
+
+    element.addEventListener("pointerdown",event => {
+      event.preventDefault();
+      platformKeys[key] = true;
+    });
+
+    ["pointerup","pointerleave","pointercancel"].forEach(eventName => {
+      element.addEventListener(eventName,() => {
+        platformKeys[key] = false;
+      });
+    });
+  }
+
+  bindGameHold("gameLeft","left");
+  bindGameHold("gameRight","right");
+  bindGameHold("gameJump","jump");
+
+  document.addEventListener("keydown",event => {
+    if (!platformRunning) return;
+
+    if (["ArrowLeft","a","A"].includes(event.key)) {
+      platformKeys.left = true;
+    }
+
+    if (["ArrowRight","d","D"].includes(event.key)) {
+      platformKeys.right = true;
+    }
+
+    if (["ArrowUp","w","W"," "].includes(event.key)) {
+      platformKeys.jump = true;
+      event.preventDefault();
+    }
+  });
+
+  document.addEventListener("keyup",event => {
+    if (["ArrowLeft","a","A"].includes(event.key)) {
+      platformKeys.left = false;
+    }
+
+    if (["ArrowRight","d","D"].includes(event.key)) {
+      platformKeys.right = false;
+    }
+
+    if (["ArrowUp","w","W"," "].includes(event.key)) {
+      platformKeys.jump = false;
+    }
+  });
+
+  $("restartPlatformGame").addEventListener(
+    "click",
+    startPlatformGame
+  );
+
+  $("gamesBtn").addEventListener("click",showGames);
+  $("backToChatBtn").addEventListener("click",hideGames);
 
   // =========================================
   // INICIAR APLICACIÓN
@@ -1145,6 +1562,7 @@
           deleteChatBtn.hidden = true;
         }
 
+        stopPlatformGame();
         showLogin();
       }
     });
