@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="es">
 <head>
@@ -180,14 +181,14 @@
 
       <p id="appStatus" class="status app-status"></p>
 
-      <!-- JUEGOS -->
+      <!-- ZONA DE JUEGOS -->
       <section id="gamesPanel" class="games-panel hidden">
 
         <header class="games-heading">
           <div>
             <p class="eyebrow">FAMILYCHAT ARCADE</p>
             <h2>🎮 Zona de juegos</h2>
-            <p>¡Diviértete jugando en FamilyChat!</p>
+            <p>¡Elige tu juego favorito!</p>
           </div>
 
           <button
@@ -199,38 +200,80 @@
           </button>
         </header>
 
-        <div class="game-info">
-          <span id="gameScore">Monedas: 0</span>
-          <span id="gameLives">Vidas: 3</span>
-          <span id="gameLevel">Nivel: 1</span>
+        <!-- MENÚ DE JUEGOS -->
+        <div id="gamesMenu" class="games-grid">
+
+          <button class="game-card" type="button" data-game="snake">
+            <span class="game-card-icon">🐍</span>
+            <strong>Snake</strong>
+            <span>Come frutas y consigue puntos.</span>
+            <small>JUGAR →</small>
+          </button>
+
+          <button class="game-card" type="button" data-game="tictactoe">
+            <span class="game-card-icon">❌</span>
+            <strong>Tres en raya</strong>
+            <span>Juega contra otra persona.</span>
+            <small>JUGAR →</small>
+          </button>
+
+          <button class="game-card" type="button" data-game="zombies">
+            <span class="game-card-icon">🧟</span>
+            <strong>Zombis</strong>
+            <span>Sobrevive a las hordas de zombis.</span>
+            <small>JUGAR →</small>
+          </button>
+
+          <button class="game-card" type="button" data-game="arkanoid">
+            <span class="game-card-icon">🧱</span>
+            <strong>Arkanoid</strong>
+            <span>Rompe todos los bloques.</span>
+            <small>JUGAR →</small>
+          </button>
+
         </div>
 
-        <div class="game-screen">
-          <canvas
-            id="platformCanvas"
-            width="800"
-            height="420"
-            aria-label="Juego de plataformas"
-          ></canvas>
+        <!-- PANTALLA DE JUEGO -->
+        <div id="activeGamePanel" class="active-game-panel hidden">
+
+          <div class="active-game-heading">
+            <button id="gamesMenuBtn" class="secondary-button" type="button">
+              ← Todos los juegos
+            </button>
+
+            <h3 id="activeGameTitle">Juego</h3>
+
+            <button id="restartActiveGame" class="primary-button" type="button">
+              ↻ Reiniciar
+            </button>
+          </div>
+
+          <div class="game-info">
+            <span id="gameScore">Puntos: 0</span>
+            <span id="gameLives">Vidas: 3</span>
+            <span id="gameLevel">Nivel: 1</span>
+          </div>
+
+          <div class="game-screen">
+            <canvas
+              id="platformCanvas"
+              width="800"
+              height="420"
+              aria-label="Zona de juego"
+            ></canvas>
+          </div>
+
+          <p id="platformMessage" class="game-message">
+            ¡Que comience la diversión!
+          </p>
+
+          <div id="gameControls" class="game-controls">
+            <button id="gameLeft" type="button">⬅️</button>
+            <button id="gameRight" type="button">➡️</button>
+            <button id="gameJump" type="button">⬆️ Saltar</button>
+          </div>
+
         </div>
-
-        <p id="platformMessage" class="game-message">
-          ¡Consigue las monedas y llega a la meta!
-        </p>
-
-        <div class="game-controls">
-          <button id="gameLeft" type="button">⬅️</button>
-          <button id="gameRight" type="button">➡️</button>
-          <button id="gameJump" type="button">⬆️ Saltar</button>
-        </div>
-
-        <button
-          id="restartPlatformGame"
-          class="primary-button"
-          type="button"
-        >
-          ↻ Reiniciar juego
-        </button>
 
       </section>
 
