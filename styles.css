@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -206,7 +205,7 @@ input:focus {
   min-height: 570px;
   padding: 20px;
   display: grid;
-  grid-template-columns: 310px 1fr;
+  grid-template-columns: 310px minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -224,6 +223,7 @@ input:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
 }
 
 .sidebar-brand {
@@ -303,6 +303,7 @@ input:focus {
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
   margin-bottom: 8px;
+  min-height: 0;
 }
 
 .contact-search {
@@ -380,12 +381,16 @@ input:focus {
   background: #dfd2ee;
 }
 
-/* CONVERSACIONES */
+/* CONVERSACIONES: LISTA DESPLAZABLE */
 
 .conversation-list {
-  overflow: auto;
-  flex: 1;
-  min-height: 45px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 90px;
+  max-height: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .conversation-item {
@@ -398,6 +403,7 @@ input:focus {
   padding: 12px;
   border-radius: 12px;
   color: var(--dark);
+  flex: 0 0 auto;
 }
 
 .conversation-item:hover,
@@ -420,6 +426,7 @@ input:focus {
   background: var(--pale);
   color: var(--purple);
   margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .secondary-button:hover {
@@ -432,6 +439,7 @@ input:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
 .chat-header {
@@ -441,6 +449,7 @@ input:focus {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .chat-header h2 {
@@ -496,6 +505,7 @@ input:focus {
 
 .messages {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 24px;
   display: flex;
@@ -530,6 +540,7 @@ input:focus {
   gap: 10px;
   padding: 17px 20px;
   border-top: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .message-form input {
@@ -546,12 +557,94 @@ input:focus {
 
 .app-status {
   padding: 0 20px;
+  flex-shrink: 0;
+}
+
+/* JUEGO */
+
+.games-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.games-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.games-top h2 {
+  margin: 0;
+}
+
+.games-top p {
+  color: var(--muted);
+}
+
+.games-top .secondary-button {
+  width: auto;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+.game-score {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--pale);
+  padding: 12px;
+  margin: 15px 0;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+#platformCanvas {
+  width: 100%;
+  max-height: 55vh;
+  display: block;
+  background: #8297f5;
+  border: 3px solid #292730;
+  border-radius: 12px;
+  image-rendering: pixelated;
+  touch-action: none;
+}
+
+.game-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 15px 0;
+}
+
+.game-buttons button {
+  min-width: 65px;
+  min-height: 55px;
+  border-radius: 14px;
+  background: var(--pale);
+  color: var(--purple);
+  font-size: 19px;
+  font-weight: 800;
+  touch-action: none;
+}
+
+#gameJump {
+  min-width: 125px;
+}
+
+#platformMessage {
+  text-align: center;
+  color: var(--purple);
+  font-weight: 700;
 }
 
 /* MÓVILES */
 
 @media (max-width: 760px) {
-
   .login-shell {
     grid-template-columns: 1fr;
     gap: 25px;
@@ -574,13 +667,15 @@ input:focus {
     height: 100dvh;
     min-height: 0;
     padding: 8px;
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(180px, 42%) 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 46%) minmax(0, 1fr);
     gap: 8px;
   }
 
   .sidebar {
     padding: 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .sidebar-brand {
@@ -592,28 +687,34 @@ input:focus {
   }
 
   .contacts-section {
-    max-height: 125px;
+    max-height: 115px;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .side-heading {
     margin: 7px 0;
   }
 
-  .conversation-list {
+  #conversationList {
     display: flex;
-    gap: 4px;
-    min-height: 40px;
+    flex-direction: column;
+    flex: 1 1 110px;
+    min-height: 85px;
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .conversation-item {
-    width: auto;
-    min-width: 120px;
-    padding: 6px;
+    width: 100%;
+    min-width: 0;
+    padding: 7px 9px;
   }
 
-  .secondary-button {
-    margin-top: 6px;
-    padding: 9px;
+  .sidebar > .secondary-button {
+    margin-top: 5px;
+    padding: 8px;
   }
 
   .chat-header {
@@ -639,5 +740,13 @@ input:focus {
 
   .message-form {
     padding: 12px;
+  }
+
+  .games-panel {
+    padding: 12px;
+  }
+
+  #platformCanvas {
+    max-height: 42vh;
   }
 }
